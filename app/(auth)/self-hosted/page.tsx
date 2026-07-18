@@ -45,7 +45,7 @@ export default async function SelfHostedWelcomePage() {
         <ColoredText>LedgerNest: Self-Hosted Edition</ColoredText>
       </CardTitle>
       <CardDescription className="flex flex-col gap-4 text-center text-lg">
-        <p>Welcome to your own instance of LedgerNest. Let&apos;s set up a couple of settings to get started.</p>
+        <p>LedgerNest could not find GEMINI_API_KEY on the server. Add one here to continue.</p>
         <SelfHostedSetupFormClient defaultProvider={defaultProvider} defaultApiKeys={defaultApiKeys} />
       </CardDescription>
     </Card>
