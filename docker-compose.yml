@@ -1,0 +1,104 @@
+name: ledgernest
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ledgernest:local
+    environment:
+      - NODE_ENV=production
+      - SELF_HOSTED_MODE=true
+      - UPLOAD_PATH=/app/data/uploads
+      - BASE_URL=${APP_URL:-http://localhost:3003}
+      - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_MODEL_NAME=${GOOGLE_MODEL_NAME:-gemini-2.5-flash}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:7331').then(r=>process.exit(r.ok||r.status<500?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "local"
+      options:
+        max-size: "100M"
+        max-file: "3"
+
+  cron:
+    image: ledgernest:local
+    environment:
+      - NODE_ENV=production
+      - SELF_HOSTED_MODE=true
+      - UPLOAD_PATH=/app/data/uploads
+      - BASE_URL=${APP_URL:-http://localhost:3003}
+      - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest
+      # Optional override. When unset, both containers use the same persisted secret from ./data.
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_MODEL_NAME=${GOOGLE_MODEL_NAME:-gemini-2.5-flash}
+    volumes:
+      - ./data:/app/data
+      - ./etc/crontab:/mnt/crontab:ro
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    command: ["docker-cron-entrypoint.sh"]
+    logging:
+      driver: "local"
+      options:
+        max-size: "100M"
+        max-file: "3"
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=ledgernest
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ledgernest}
+      - POSTGRES_DB=ledgernest
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgernest -d ledgernest"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "local"
+      options:
+        max-size: "100M"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

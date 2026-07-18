@@ -1,0 +1,75 @@
+import { z } from "zod"
+import packageJson from "../package.json"
+
+const envSchema = z.object({
+  BASE_URL: z.string().url().default("http://localhost:3003"),
+  PORT: z.string().default("7331"),
+  SELF_HOSTED_MODE: z.enum(["true", "false"]).default("true"),
+  GEMINI_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  GOOGLE_MODEL_NAME: z.string().default("gemini-2.5-flash"),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(16, "Auth secret must be at least 16 characters")
+    .default("please-set-your-key-here"),
+  DISABLE_SIGNUP: z.enum(["true", "false"]).default("false"),
+  RESEND_API_KEY: z.string().default("please-set-your-resend-api-key-here"),
+  RESEND_FROM_EMAIL: z.string().default("LedgerNest <user@localhost>"),
+  RESEND_AUDIENCE_ID: z.string().default(""),
+  STRIPE_SECRET_KEY: z.string().default(""),
+  STRIPE_WEBHOOK_SECRET: z.string().default(""),
+})
+
+const env = envSchema.parse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")))
+
+const config = {
+  app: {
+    title: "LedgerNest",
+    description: "Private, AI-assisted document and expense intelligence",
+    version: packageJson.version || "0.0.1",
+    baseURL: env.BASE_URL || "http://localhost:3003",
+    supportEmail: "support@ledgernest.local",
+  },
+  upload: {
+    acceptedMimeTypes: "image/*,.pdf,.doc,.docx,.xls,.xlsx",
+    images: {
+      maxWidth: 1800,
+      maxHeight: 1800,
+      quality: 90,
+    },
+    pdfs: {
+      maxPages: 10,
+      dpi: 150,
+      quality: 90,
+      maxWidth: 1500,
+      maxHeight: 1500,
+    },
+  },
+  selfHosted: {
+    isEnabled: env.SELF_HOSTED_MODE === "true",
+    redirectUrl: "/self-hosted/redirect",
+    welcomeUrl: "/self-hosted",
+  },
+  ai: {
+    googleApiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
+    googleModelName: env.GOOGLE_MODEL_NAME,
+  },
+  auth: {
+    secret: env.BETTER_AUTH_SECRET,
+    loginUrl: "/enter",
+    disableSignup: env.DISABLE_SIGNUP === "true" || env.SELF_HOSTED_MODE === "true",
+  },
+  stripe: {
+    secretKey: env.STRIPE_SECRET_KEY,
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+    paymentSuccessUrl: `${env.BASE_URL}/cloud/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+    paymentCancelUrl: `${env.BASE_URL}/cloud`,
+  },
+  email: {
+    apiKey: env.RESEND_API_KEY,
+    from: env.RESEND_FROM_EMAIL,
+    audienceId: env.RESEND_AUDIENCE_ID,
+  },
+} as const
+
+export default config

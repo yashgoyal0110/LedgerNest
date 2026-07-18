@@ -1,0 +1,55 @@
+import { Card, CardDescription, CardTitle } from "@/components/ui/card"
+import { ColoredText } from "@/components/ui/colored-text"
+import config from "@/lib/config"
+import { PROVIDERS } from "@/lib/llm-providers"
+import { getSelfHostedUser } from "@/models/users"
+import { ShieldAlert } from "lucide-react"
+import Image from "next/image"
+import { redirect } from "next/navigation"
+import SelfHostedSetupFormClient from "./setup-form-client"
+
+export default async function SelfHostedWelcomePage() {
+  if (!config.selfHosted.isEnabled) {
+    return (
+      <Card className="w-full max-w-xl mx-auto p-8 flex flex-col items-center justify-center gap-6">
+        <CardTitle className="text-2xl font-bold flex items-center gap-2">
+          <ShieldAlert className="w-6 h-6" />
+          <span>Self-Hosted Mode is not enabled</span>
+        </CardTitle>
+        <CardDescription className="text-center text-lg flex flex-col gap-2">
+          <p>
+            To use LedgerNest in self-hosted mode, please set <code className="font-bold">SELF_HOSTED_MODE=true</code> in
+            your environment.
+          </p>
+          <p>In self-hosted mode you use your own Gemini API key and keep your records on your own server.</p>
+        </CardDescription>
+      </Card>
+    )
+  }
+
+  const user = await getSelfHostedUser()
+  if (user) {
+    redirect(config.selfHosted.redirectUrl)
+  }
+
+  const defaultProvider = PROVIDERS[0].key
+  const defaultApiKeys: Record<string, string> = {
+    // Never serialize a server-side environment secret into the setup page.
+    google: "",
+  }
+
+  return (
+    <Card className="w-full max-w-xl mx-auto p-8 flex flex-col items-center justify-center gap-4">
+      <Image src="/logo/logo.svg" alt="LedgerNest" width={144} height={144} className="w-36 h-36" />
+      <CardTitle className="text-3xl font-bold ">
+        <ColoredText>LedgerNest: Self-Hosted Edition</ColoredText>
+      </CardTitle>
+      <CardDescription className="flex flex-col gap-4 text-center text-lg">
+        <p>Welcome to your own instance of LedgerNest. Let&apos;s set up a couple of settings to get started.</p>
+        <SelfHostedSetupFormClient defaultProvider={defaultProvider} defaultApiKeys={defaultApiKeys} />
+      </CardDescription>
+    </Card>
+  )
+}
+
+export const dynamic = "force-dynamic"
