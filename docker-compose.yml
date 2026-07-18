@@ -1,29 +1,18 @@
 name: ledgernest
 
 services:
-  caddy:
-    image: caddy:2.10-alpine
-    ports:
-      - "3003:3003"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-
   app:
     build:
       context: .
       dockerfile: Dockerfile
     image: ledgernest:local
+    ports:
+      - "127.0.0.1:3003:7331"
     environment:
       - NODE_ENV=production
       - SELF_HOSTED_MODE=true
       - UPLOAD_PATH=/app/data/uploads
-      - BASE_URL=${APP_URL:-http://localhost:3003}
+      - BASE_URL=${APP_URL:-https://ledgernest.8.229.88.229.sslip.io}
       - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
@@ -53,7 +42,7 @@ services:
       - NODE_ENV=production
       - SELF_HOSTED_MODE=true
       - UPLOAD_PATH=/app/data/uploads
-      - BASE_URL=${APP_URL:-http://localhost:3003}
+      - BASE_URL=${APP_URL:-https://ledgernest.8.229.88.229.sslip.io}
       - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest
       # Optional override. When unset, both containers use the same persisted secret from ./data.
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
@@ -98,7 +87,3 @@ services:
       options:
         max-size: "100M"
         max-file: "3"
-
-volumes:
-  caddy_data:
-  caddy_config:
