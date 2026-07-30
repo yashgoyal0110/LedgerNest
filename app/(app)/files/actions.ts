@@ -2,9 +2,9 @@
 
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
-import { getDirectorySize, getUserUploadsDirectory, isEnoughStorageToUploadFile } from "@/lib/files"
+import { getDirectorySize, getTenantUploadsDirectory, isEnoughStorageToUploadFile } from "@/lib/files"
 import { ingestUnsortedFile } from "@/lib/uploads"
-import { updateUser } from "@/models/users"
+import { recalculateTenantStorage } from "@/models/tenants"
 import { revalidatePath } from "next/cache"
 
 export async function uploadFilesAction(formData: FormData): Promise<ActionState<null>> {
@@ -13,7 +13,7 @@ export async function uploadFilesAction(formData: FormData): Promise<ActionState
 
   // Check limits
   const totalFileSize = files.reduce((acc, file) => acc + file.size, 0)
-  if (!isEnoughStorageToUploadFile(user, totalFileSize)) {
+  if (!isEnoughStorageToUploadFile(user.tenant, totalFileSize)) {
     return { success: false, error: `Insufficient storage to upload these files` }
   }
 
@@ -31,7 +31,7 @@ export async function uploadFilesAction(formData: FormData): Promise<ActionState
         return { success: false, error: "Invalid file" }
       }
       const arrayBuffer = await file.arrayBuffer()
-      return await ingestUnsortedFile(user, {
+      return await ingestUnsortedFile(user.tenant, user, {
         buffer: Buffer.from(arrayBuffer),
         filename: file.name,
         mimetype: file.type,
@@ -40,8 +40,7 @@ export async function uploadFilesAction(formData: FormData): Promise<ActionState
     })
   )
 
-  const storageUsed = await getDirectorySize(getUserUploadsDirectory(user))
-  await updateUser(user.id, { storageUsed })
+  await recalculateTenantStorage(user.tenant)
 
   revalidatePath("/unsorted")
 

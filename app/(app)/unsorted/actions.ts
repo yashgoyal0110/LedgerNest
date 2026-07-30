@@ -7,10 +7,11 @@ import { fieldsToJsonSchema } from "@/ai/schema"
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/auth"
+import { aiQuotaExhaustedMessage } from "@/lib/tenant"
 import {
   getDirectorySize,
   getTransactionFileUploadPath,
-  getUserUploadsDirectory,
+  getTenantUploadsDirectory,
   safePathJoin,
   unsortedFilePath,
 } from "@/lib/files"
@@ -22,7 +23,8 @@ import {
   updateTransactionFiles,
   findDuplicateTransaction,
 } from "@/models/transactions"
-import { updateUser } from "@/models/users"
+import { consumeAiCredit, refundAiCredit } from "@/models/tenants"
+import { recalculateTenantStorage } from "@/models/tenants"
 import { Category, Field, File, Project, Transaction } from "@/prisma/client"
 import { randomUUID } from "crypto"
 import { mkdir, readFile, rename, writeFile } from "fs/promises"
@@ -38,8 +40,8 @@ export async function analyzeFileAction(
 ): Promise<ActionState<AnalysisResult>> {
   const user = await getCurrentUser()
 
-  if (!file || file.userId !== user.id) {
-    return { success: false, error: "File not found or does not belong to the user" }
+  if (!file || file.tenantId !== user.tenantId) {
+    return { success: false, error: "File not found or does not belong to this workspace" }
   }
 
   if (isAiBalanceExhausted(user)) {
@@ -58,7 +60,7 @@ export async function analyzeFileAction(
 
   let attachments: AnalyzeAttachment[] = []
   try {
-    attachments = await loadAttachmentsForAI(user, file)
+    attachments = await loadAttachmentsForAI(user.tenant, file)
   } catch (error) {
     console.error("Failed to retrieve files:", error)
     return { success: false, error: "Failed to retrieve files: " + error }
@@ -73,12 +75,19 @@ export async function analyzeFileAction(
 
   const schema = fieldsToJsonSchema(fields)
 
-  const results = await analyzeTransaction(prompt, schema, attachments, file.id, user.id)
+  // Reserve the credit before calling the model so parallel analyses can never
+  // overspend the workspace quota; it is handed back if the call fails.
+  if (!(await consumeAiCredit(user))) {
+    return {
+      success: false,
+      error: aiQuotaExhaustedMessage(user.tenant),
+    }
+  }
 
-  console.log("Analysis results:", results)
+  const results = await analyzeTransaction(prompt, schema, attachments, file.id, user)
 
-  if (results.data?.tokensUsed && results.data.tokensUsed > 0) {
-    await updateUser(user.id, { aiBalance: { decrement: 1 } })
+  if (!results.success) {
+    await refundAiCredit(user)
   }
 
   return results
@@ -98,7 +107,7 @@ export async function saveFileAsTransactionAction(
 
     // Get the file record
     const fileId = formData.get("fileId") as string
-    const file = await getFileById(fileId, user.id)
+    const file = await getFileById(fileId, user)
     if (!file) throw new Error("File not found")
 
     const forceSave = formData.get("forceSave") === "true"
@@ -106,7 +115,7 @@ export async function saveFileAsTransactionAction(
 
     // --- Deduplication Check ---
     if (!forceSave) {
-      const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
+      const existingTransaction = await findDuplicateTransaction(user, transactionData)
 
       if (existingTransaction) {
         return {
@@ -121,10 +130,10 @@ export async function saveFileAsTransactionAction(
       }
     }
 
-    const transaction = await createTransaction(user.id, validatedForm.data)
+    const transaction = await createTransaction(user, validatedForm.data)
 
     // Move file to processed location
-    const userUploadsDirectory = getUserUploadsDirectory(user)
+    const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
     const originalFileName = path.basename(file.path)
     const newRelativeFilePath = getTransactionFileUploadPath(file.id, originalFileName, transaction)
 
@@ -135,12 +144,12 @@ export async function saveFileAsTransactionAction(
     await rename(path.resolve(oldFullFilePath), path.resolve(newFullFilePath))
 
     // Update file record
-    await updateFile(file.id, user.id, {
+    await updateFile(file.id, user, {
       path: newRelativeFilePath,
       isReviewed: true,
     })
 
-    await updateTransactionFiles(transaction.id, user.id, [file.id])
+    await updateTransactionFiles(transaction.id, user, [file.id])
 
     revalidatePath("/unsorted")
     revalidatePath("/transactions")
@@ -158,7 +167,7 @@ export async function deleteUnsortedFileAction(
 ): Promise<ActionState<Transaction>> {
   try {
     const user = await getCurrentUser()
-    await deleteFile(fileId, user.id)
+    await deleteFile(fileId, user)
     revalidatePath("/unsorted")
     return { success: true }
   } catch (error) {
@@ -181,13 +190,13 @@ export async function splitFileIntoItemsAction(
     }
 
     // Get the original file
-    const originalFile = await getFileById(fileId, user.id)
+    const originalFile = await getFileById(fileId, user)
     if (!originalFile) {
       return { success: false, error: "Original file not found" }
     }
 
     // Get the original file's content
-    const userUploadsDirectory = getUserUploadsDirectory(user)
+    const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
     const originalFilePath = safePathJoin(userUploadsDirectory, originalFile.path)
     const fileContent = await readFile(originalFilePath)
 
@@ -205,7 +214,7 @@ export async function splitFileIntoItemsAction(
       await writeFile(fullFilePath, fileContent)
 
       // Create file record in database with the item data cached
-      await createFile(user.id, {
+      await createFile(user, {
         id: fileUuid,
         filename: fileName,
         path: relativeFilePath,
@@ -229,11 +238,10 @@ export async function splitFileIntoItemsAction(
     }
 
     // Delete the original file
-    await deleteFile(fileId, user.id)
+    await deleteFile(fileId, user)
 
     // Update user storage used
-    const storageUsed = await getDirectorySize(getUserUploadsDirectory(user))
-    await updateUser(user.id, { storageUsed })
+    await recalculateTenantStorage(user.tenant)
 
     revalidatePath("/unsorted")
     return { success: true }

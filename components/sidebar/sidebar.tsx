@@ -20,6 +20,7 @@ import {
 import { UserProfile } from "@/lib/auth"
 import config from "@/lib/config"
 import {
+  Building2,
   ClockArrowUp,
   Coins,
   DatabaseBackup,
@@ -48,7 +49,8 @@ type SidebarApp = {
 }
 
 const settingsItems = [
-  { title: "Profile & Plan", href: "/settings/profile", icon: User },
+  { title: "Workspace & Plan", href: "/settings/workspace", icon: Building2 },
+  { title: "Profile", href: "/settings/profile", icon: User },
   { title: "LLM settings", href: "/settings/llm", icon: Sparkles },
   { title: "Fields", href: "/settings/fields", icon: FormInput },
   { title: "Categories", href: "/settings/categories", icon: Tags },

@@ -4,7 +4,7 @@ import * as React from "react"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import {
   getTransactionFileUploadPath,
-  getUserUploadsDirectory,
+  getTenantUploadsDirectory,
   isEnoughStorageToUploadFile,
   safePathJoin,
 } from "@/lib/files"
@@ -16,7 +16,7 @@ import {
   TransactionData,
   findDuplicateTransaction,
 } from "@/models/transactions"
-import { Transaction, User } from "@/prisma/client"
+import { Transaction } from "@/prisma/client"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { randomUUID } from "crypto"
 import { mkdir, writeFile } from "fs/promises"
@@ -34,14 +34,16 @@ export async function generateInvoicePDF(data: InvoiceFormData): Promise<Uint8Ar
   return new Uint8Array(buffer)
 }
 
-export async function addNewTemplateAction(user: User, template: InvoiceTemplate) {
+export async function addNewTemplateAction(template: InvoiceTemplate) {
+  const user = await getCurrentUser()
   const appData = (await getAppData(user, "invoices")) as InvoiceAppData | null
   const updatedTemplates = [...(appData?.templates || []), template]
   const appDataResult = await setAppData(user, "invoices", { ...appData, templates: updatedTemplates })
   return { success: true, data: appDataResult }
 }
 
-export async function deleteTemplateAction(user: User, templateId: string) {
+export async function deleteTemplateAction(templateId: string) {
+  const user = await getCurrentUser()
   const appData = (await getAppData(user, "invoices")) as InvoiceAppData | null
   if (!appData) return { success: false, error: "No app data found" }
 
@@ -89,7 +91,7 @@ export async function saveInvoiceAsTransactionAction(
 
     // --- Deduplication Check ---
     if (!forceSave) {
-      const existingTransaction = await findDuplicateTransaction(user.id, rawTransactionData)
+      const existingTransaction = await findDuplicateTransaction(user, rawTransactionData)
 
       if (existingTransaction) {
         return {
@@ -103,10 +105,10 @@ export async function saveInvoiceAsTransactionAction(
       }
     }
 
-    const transaction = await createTransaction(user.id, rawTransactionData)
+    const transaction = await createTransaction(user, rawTransactionData)
 
     // Check storage limits
-    if (!isEnoughStorageToUploadFile(user, pdfBuffer.length)) {
+    if (!isEnoughStorageToUploadFile(user.tenant, pdfBuffer.length)) {
       return {
         success: false,
         error: "Insufficient storage to save invoice PDF",
@@ -124,14 +126,14 @@ export async function saveInvoiceAsTransactionAction(
     const fileUuid = randomUUID()
     const fileName = `invoice-${formData.invoiceNumber}.pdf`
     const relativeFilePath = getTransactionFileUploadPath(fileUuid, fileName, transaction)
-    const userUploadsDirectory = getUserUploadsDirectory(user)
+    const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
     const fullFilePath = safePathJoin(userUploadsDirectory, relativeFilePath)
 
     await mkdir(path.dirname(fullFilePath), { recursive: true })
     await writeFile(fullFilePath, pdfBuffer)
 
     // Create file record in database
-    const fileRecord = await createFile(user.id, {
+    const fileRecord = await createFile(user, {
       id: fileUuid,
       filename: fileName,
       path: relativeFilePath,
@@ -144,7 +146,7 @@ export async function saveInvoiceAsTransactionAction(
     })
 
     // Update transaction with the file ID
-    await updateTransactionFiles(transaction.id, user.id, [fileRecord.id])
+    await updateTransactionFiles(transaction.id, user, [fileRecord.id])
 
     revalidatePath("/transactions")
 

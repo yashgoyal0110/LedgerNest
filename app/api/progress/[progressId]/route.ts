@@ -1,21 +1,16 @@
-import { getSession } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 import { getOrCreateProgress, getProgressById } from "@/models/progress"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 
 const POLL_INTERVAL_MS = 2000 // 2 seconds
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ progressId: string }> }) {
-  const session = await getSession()
-  if (!session || !session.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const userId = session.user.id
+  const user = await getCurrentUser()
   const { progressId } = await params
   const url = new URL(req.url)
   const type = url.searchParams.get("type") || "unknown"
 
-  await getOrCreateProgress(userId, progressId, type)
+  await getOrCreateProgress(user, progressId, type)
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -29,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prog
       })
 
       while (!stopped) {
-        const progress = await getProgressById(userId, progressId)
+        const progress = await getProgressById(user, progressId)
         if (!progress) {
           controller.enqueue(encoder.encode(`event: error\ndata: {"error":"Not found"}\n\n`))
           controller.close()

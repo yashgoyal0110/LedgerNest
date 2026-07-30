@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 import { codeFromName } from "@/lib/utils"
 import { Prisma } from "@/prisma/client"
 import { cache } from "react"
@@ -7,40 +8,37 @@ export type FieldData = {
   [key: string]: unknown
 }
 
-export const getFields = cache(async (userId: string) => {
+export const getFields = cache(async ({ tenantId }: TenantScope) => {
   return await prisma.field.findMany({
-    where: { userId },
+    where: { tenantId },
     orderBy: {
       createdAt: "asc",
     },
   })
 })
 
-export const createField = async (userId: string, field: FieldData) => {
+export const createField = async ({ tenantId, userId }: TenantScope, field: FieldData) => {
   if (!field.code) {
     field.code = codeFromName(field.name as string)
   }
   return await prisma.field.create({
     data: {
       ...field,
-      user: {
-        connect: {
-          id: userId,
-        },
-      },
-    } as Prisma.FieldCreateInput,
+      tenantId,
+      userId,
+    } as unknown as Prisma.FieldUncheckedCreateInput,
   })
 }
 
-export const updateField = async (userId: string, code: string, field: FieldData) => {
+export const updateField = async ({ tenantId }: TenantScope, code: string, field: FieldData) => {
   return await prisma.field.update({
-    where: { userId_code: { code, userId } },
+    where: { tenantId_code: { code, tenantId } },
     data: field,
   })
 }
 
-export const deleteField = async (userId: string, code: string) => {
+export const deleteField = async ({ tenantId }: TenantScope, code: string) => {
   return await prisma.field.delete({
-    where: { userId_code: { code, userId } },
+    where: { tenantId_code: { code, tenantId } },
   })
 }

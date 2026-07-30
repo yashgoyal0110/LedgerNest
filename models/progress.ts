@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 
 export const getOrCreateProgress = async (
-  userId: string,
+  { tenantId, userId }: TenantScope,
   id: string,
   type: string | null = null,
   data: any = null,
@@ -11,7 +12,8 @@ export const getOrCreateProgress = async (
     where: { id },
     create: {
       id,
-      user: { connect: { id: userId } },
+      tenantId,
+      userId,
       type: type || "unknown",
       data,
       total,
@@ -22,41 +24,41 @@ export const getOrCreateProgress = async (
   })
 }
 
-export const getProgressById = async (userId: string, id: string) => {
+export const getProgressById = async ({ tenantId }: TenantScope, id: string) => {
   return await prisma.progress.findFirst({
-    where: { id, userId },
+    where: { id, tenantId },
   })
 }
 
 export const updateProgress = async (
-  userId: string,
+  { tenantId }: TenantScope,
   id: string,
   fields: { current?: number; total?: number; data?: any }
 ) => {
   return await prisma.progress.updateMany({
-    where: { id, userId },
+    where: { id, tenantId },
     data: fields,
   })
 }
 
-export const incrementProgress = async (userId: string, id: string, amount: number = 1) => {
+export const incrementProgress = async ({ tenantId }: TenantScope, id: string, amount: number = 1) => {
   return await prisma.progress.updateMany({
-    where: { id, userId },
+    where: { id, tenantId },
     data: {
       current: { increment: amount },
     },
   })
 }
 
-export const getAllProgressByUser = async (userId: string) => {
+export const getAllProgress = async ({ tenantId }: TenantScope) => {
   return await prisma.progress.findMany({
-    where: { userId },
+    where: { tenantId },
     orderBy: { createdAt: "desc" },
   })
 }
 
-export const deleteProgress = async (userId: string, id: string) => {
+export const deleteProgress = async ({ tenantId }: TenantScope, id: string) => {
   return await prisma.progress.deleteMany({
-    where: { id, userId },
+    where: { id, tenantId },
   })
 }

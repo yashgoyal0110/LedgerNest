@@ -1,19 +1,35 @@
 "use client"
 
+import { prepareDemoAccountAction, signInToDemoAction } from "@/app/(auth)/demo-actions"
 import { FormError } from "@/components/forms/error"
 import { FormInput } from "@/components/forms/simple"
 import { Button } from "@/components/ui/button"
 import { authClient } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
+import { ArrowRight, KeyRound, Loader2, Mail, Wand2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useTransition } from "react"
 
-export function LoginForm({ defaultEmail }: { defaultEmail?: string }) {
+type Method = "code" | "password"
+
+export function LoginForm({ defaultEmail, isDemoEnabled = false }: { defaultEmail?: string; isDemoEnabled?: boolean }) {
+  const [method, setMethod] = useState<Method>("code")
   const [email, setEmail] = useState(defaultEmail || "")
+  const [password, setPassword] = useState("")
   const [otp, setOtp] = useState("")
   const [isOtpSent, setIsOtpSent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [isPreparingDemo, startDemoTransition] = useTransition()
   const router = useRouter()
+
+  const switchMethod = (next: Method) => {
+    setMethod(next)
+    setError(null)
+    setIsOtpSent(false)
+    setOtp("")
+  }
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,10 +37,7 @@ export function LoginForm({ defaultEmail }: { defaultEmail?: string }) {
     setError(null)
 
     try {
-      const result = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: "sign-in",
-      })
+      const result = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" })
       if (result.error) {
         setError(result.error.message || "Failed to send the code")
         return
@@ -43,15 +56,11 @@ export function LoginForm({ defaultEmail }: { defaultEmail?: string }) {
     setError(null)
 
     try {
-      const result = await authClient.signIn.emailOtp({
-        email,
-        otp,
-      })
+      const result = await authClient.signIn.emailOtp({ email, otp })
       if (result.error) {
         setError("The code is invalid or expired")
         return
       }
-
       router.push("/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to verify the code")
@@ -60,34 +69,158 @@ export function LoginForm({ defaultEmail }: { defaultEmail?: string }) {
     }
   }
 
-  return (
-    <form onSubmit={isOtpSent ? handleVerifyOtp : handleSendOtp} className="flex flex-col gap-4 w-full">
-      <FormInput
-        title="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        disabled={isOtpSent}
-      />
+  const handlePasswordSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
 
-      {isOtpSent && (
-        <FormInput
-          title="Check your email for the verification code"
-          type="text"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          required
-          maxLength={6}
-          pattern="[0-9]{6}"
-        />
+    try {
+      const result = await authClient.signIn.email({ email, password })
+      if (result.error) {
+        setError(result.error.message || "Incorrect email or password")
+        return
+      }
+      router.push("/dashboard")
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sign in")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  /** Fills the form with the demo credentials so they are visible before use. */
+  const fillDemoCredentials = () => {
+    setError(null)
+    startDemoTransition(async () => {
+      const result = await prepareDemoAccountAction()
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
+      switchMethod("password")
+      setEmail(result.credentials.email)
+      setPassword(result.credentials.password)
+      setNotice("Demo credentials filled in — press Sign in to continue.")
+    })
+  }
+
+  const enterDemoDirectly = () => {
+    setError(null)
+    startDemoTransition(async () => {
+      const result = await signInToDemoAction()
+      if (!result.success) {
+        setError(result.error || "Could not open the demo workspace")
+        return
+      }
+      router.push("/dashboard")
+      router.refresh()
+    })
+  }
+
+  const onSubmit = method === "password" ? handlePasswordSignIn : isOtpSent ? handleVerifyOtp : handleSendOtp
+
+  return (
+    <div className="flex w-full flex-col gap-6">
+      {isDemoEnabled && (
+        <div className="rounded-xl border bg-muted/40 p-4">
+          <p className="text-sm font-semibold">Just looking around?</p>
+          <p className="text-sm text-muted-foreground">
+            Open a fully populated workspace — a year of books, receipts and reports. No signup required.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" onClick={enterDemoDirectly} disabled={isPreparingDemo} className="gap-2">
+              {isPreparingDemo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              Enter demo workspace
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={fillDemoCredentials}
+              disabled={isPreparingDemo}
+              className="gap-2"
+            >
+              <Wand2 className="h-4 w-4" />
+              Fill demo credentials
+            </Button>
+          </div>
+        </div>
       )}
 
-      <Button type="submit" disabled={isLoading}>
-        {isLoading ? "Loading..." : isOtpSent ? "Verify Code" : "Enter"}
-      </Button>
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={method === "code"}
+          onClick={() => switchMethod("code")}
+          className={cn(
+            "flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            method === "code" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Mail className="h-4 w-4" />
+          Email code
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={method === "password"}
+          onClick={() => switchMethod("password")}
+          className={cn(
+            "flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            method === "password" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <KeyRound className="h-4 w-4" />
+          Password
+        </button>
+      </div>
 
-      {error && <FormError className="text-center">{error}</FormError>}
-    </form>
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-4">
+        <FormInput
+          title="Work email"
+          type="email"
+          name="email"
+          autoComplete="username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={isOtpSent}
+        />
+
+        {method === "password" && (
+          <FormInput
+            title="Password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        )}
+
+        {method === "code" && isOtpSent && (
+          <FormInput
+            title="Six-digit code from your email"
+            type="text"
+            inputMode="numeric"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            required
+            maxLength={6}
+            pattern="[0-9]{6}"
+          />
+        )}
+
+        <Button type="submit" disabled={isLoading} className="gap-2">
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {method === "password" ? "Sign in" : isOtpSent ? "Verify code" : "Email me a code"}
+        </Button>
+
+        {notice && !error && <p className="text-center text-sm text-muted-foreground">{notice}</p>}
+        {error && <FormError className="text-center">{error}</FormError>}
+      </form>
+    </div>
   )
 }

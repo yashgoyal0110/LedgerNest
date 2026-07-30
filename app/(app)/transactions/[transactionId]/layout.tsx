@@ -11,7 +11,7 @@ export default async function TransactionLayout({
 }) {
   const { transactionId } = await params
   const user = await getCurrentUser()
-  const transaction = await getTransactionById(transactionId, user.id)
+  const transaction = await getTransactionById(transactionId, user)
 
   if (!transaction) {
     notFound()

@@ -18,6 +18,7 @@ import { createCurrency, deleteCurrency, updateCurrency } from "@/models/currenc
 import { createField, deleteField, updateField } from "@/models/fields"
 import { createProject, deleteProject, updateProject } from "@/models/projects"
 import { SettingsMap, updateSettings } from "@/models/settings"
+import { updateTenant } from "@/models/tenants"
 import { updateUser } from "@/models/users"
 import { Prisma, User } from "@/prisma/client"
 import { revalidatePath } from "next/cache"
@@ -37,7 +38,7 @@ export async function saveSettingsAction(
   for (const key in validatedForm.data) {
     const value = validatedForm.data[key as keyof typeof validatedForm.data]
     if (value !== undefined) {
-      await updateSettings(user.id, key, value)
+      await updateSettings(user, key, value)
     }
   }
 
@@ -77,7 +78,7 @@ export async function saveProfileAction(
   const avatarFile = formData.get("avatar") as File | null
   if (avatarFile instanceof File && avatarFile.size > 0) {
     try {
-      const uploadedAvatarPath = await uploadStaticImage(user, avatarFile, "avatar.webp", 500, 500)
+      const uploadedAvatarPath = await uploadStaticImage(user.tenant, avatarFile, "avatar.webp", 500, 500)
       avatarUrl = `/files/static/${path.basename(uploadedAvatarPath)}`
     } catch (error) {
       return { success: false, error: "Failed to upload avatar: " + error }
@@ -85,43 +86,84 @@ export async function saveProfileAction(
   }
 
   // Upload business logo
-  let businessLogoUrl = user.businessLogo
+  let businessLogoUrl = user.tenant.businessLogo
   const businessLogoFile = formData.get("businessLogo") as File | null
   if (businessLogoFile instanceof File && businessLogoFile.size > 0) {
     try {
-      const uploadedBusinessLogoPath = await uploadStaticImage(user, businessLogoFile, "businessLogo.png", 500, 500)
+      const uploadedBusinessLogoPath = await uploadStaticImage(
+        user.tenant,
+        businessLogoFile,
+        "businessLogo.png",
+        500,
+        500
+      )
       businessLogoUrl = `/files/static/${path.basename(uploadedBusinessLogoPath)}`
     } catch (error) {
       return { success: false, error: "Failed to upload business logo: " + error }
     }
   }
 
-  // Update user
+  // The person's own profile...
   await updateUser(user.id, {
     name: validatedForm.data.name !== undefined ? validatedForm.data.name : user.name,
     avatar: avatarUrl,
-    businessName: validatedForm.data.businessName !== undefined ? validatedForm.data.businessName : user.businessName,
+  })
+
+  // ...and the business identity, which belongs to the workspace and is shared
+  // by everyone in it.
+  await updateTenant(user.tenantId, {
+    businessName:
+      validatedForm.data.businessName !== undefined ? validatedForm.data.businessName : user.tenant.businessName,
     businessAddress:
-      validatedForm.data.businessAddress !== undefined ? validatedForm.data.businessAddress : user.businessAddress,
+      validatedForm.data.businessAddress !== undefined
+        ? validatedForm.data.businessAddress
+        : user.tenant.businessAddress,
     businessBankDetails:
       validatedForm.data.businessBankDetails !== undefined
         ? validatedForm.data.businessBankDetails
-        : user.businessBankDetails,
+        : user.tenant.businessBankDetails,
     businessLogo: businessLogoUrl,
   })
 
   revalidatePath("/settings/profile")
+  revalidatePath("/settings/workspace")
   return { success: true }
 }
 
-export async function addProjectAction(userId: string, data: Prisma.ProjectCreateInput) {
+export async function saveWorkspaceAction(
+  _prevState: ActionState<null> | null,
+  formData: FormData
+): Promise<ActionState<null>> {
+  const user = await getCurrentUser()
+
+  if (user.role !== "owner" && user.role !== "admin") {
+    return { success: false, error: "Only workspace owners and admins can rename the workspace" }
+  }
+
+  if (user.tenant.isDemo) {
+    return { success: false, error: "The demo workspace cannot be modified" }
+  }
+
+  const name = (formData.get("name") as string | null)?.trim()
+  if (!name) {
+    return { success: false, error: "Workspace name is required" }
+  }
+
+  await updateTenant(user.tenantId, { name })
+
+  revalidatePath("/settings/workspace")
+  return { success: true }
+}
+
+export async function addProjectAction(data: Prisma.ProjectCreateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = projectFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const project = await createProject(userId, {
+  const project = await createProject(scope, {
     code: codeFromName(validatedForm.data.name),
     name: validatedForm.data.name,
     llm_prompt: validatedForm.data.llm_prompt || null,
@@ -132,14 +174,15 @@ export async function addProjectAction(userId: string, data: Prisma.ProjectCreat
   return { success: true, project }
 }
 
-export async function editProjectAction(userId: string, code: string, data: Prisma.ProjectUpdateInput) {
+export async function editProjectAction(code: string, data: Prisma.ProjectUpdateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = projectFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const project = await updateProject(userId, code, {
+  const project = await updateProject(scope, code, {
     name: validatedForm.data.name,
     llm_prompt: validatedForm.data.llm_prompt,
     color: validatedForm.data.color || "",
@@ -149,9 +192,10 @@ export async function editProjectAction(userId: string, code: string, data: Pris
   return { success: true, project }
 }
 
-export async function deleteProjectAction(userId: string, code: string) {
+export async function deleteProjectAction(code: string) {
+  const scope = await getCurrentUser()
   try {
-    await deleteProject(userId, code)
+    await deleteProject(scope, code)
   } catch (error) {
     return { success: false, error: "Failed to delete project" + error }
   }
@@ -159,14 +203,15 @@ export async function deleteProjectAction(userId: string, code: string) {
   return { success: true }
 }
 
-export async function addCurrencyAction(userId: string, data: Prisma.CurrencyCreateInput) {
+export async function addCurrencyAction(data: Prisma.CurrencyCreateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = currencyFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const currency = await createCurrency(userId, {
+  const currency = await createCurrency(scope, {
     code: validatedForm.data.code,
     name: validatedForm.data.name,
   })
@@ -175,21 +220,23 @@ export async function addCurrencyAction(userId: string, data: Prisma.CurrencyCre
   return { success: true, currency }
 }
 
-export async function editCurrencyAction(userId: string, code: string, data: Prisma.CurrencyUpdateInput) {
+export async function editCurrencyAction(code: string, data: Prisma.CurrencyUpdateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = currencyFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const currency = await updateCurrency(userId, code, { name: validatedForm.data.name })
+  const currency = await updateCurrency(scope, code, { name: validatedForm.data.name })
   revalidatePath("/settings/currencies")
   return { success: true, currency }
 }
 
-export async function deleteCurrencyAction(userId: string, code: string) {
+export async function deleteCurrencyAction(code: string) {
+  const scope = await getCurrentUser()
   try {
-    await deleteCurrency(userId, code)
+    await deleteCurrency(scope, code)
   } catch (error) {
     return { success: false, error: "Failed to delete currency" + error }
   }
@@ -197,7 +244,8 @@ export async function deleteCurrencyAction(userId: string, code: string) {
   return { success: true }
 }
 
-export async function addCategoryAction(userId: string, data: Prisma.CategoryCreateInput) {
+export async function addCategoryAction(data: Prisma.CategoryCreateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = categoryFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
@@ -206,7 +254,7 @@ export async function addCategoryAction(userId: string, data: Prisma.CategoryCre
 
   const code = codeFromName(validatedForm.data.name)
   try {
-    const category = await createCategory(userId, {
+    const category = await createCategory(scope, {
       code,
       name: validatedForm.data.name,
       llm_prompt: validatedForm.data.llm_prompt,
@@ -226,14 +274,15 @@ export async function addCategoryAction(userId: string, data: Prisma.CategoryCre
   }
 }
 
-export async function editCategoryAction(userId: string, code: string, data: Prisma.CategoryUpdateInput) {
+export async function editCategoryAction(code: string, data: Prisma.CategoryUpdateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = categoryFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const category = await updateCategory(userId, code, {
+  const category = await updateCategory(scope, code, {
     name: validatedForm.data.name,
     llm_prompt: validatedForm.data.llm_prompt,
     color: validatedForm.data.color || "",
@@ -243,9 +292,10 @@ export async function editCategoryAction(userId: string, code: string, data: Pri
   return { success: true, category }
 }
 
-export async function deleteCategoryAction(userId: string, code: string) {
+export async function deleteCategoryAction(code: string) {
+  const scope = await getCurrentUser()
   try {
-    await deleteCategory(userId, code)
+    await deleteCategory(scope, code)
   } catch (error) {
     return { success: false, error: "Failed to delete category" + error }
   }
@@ -253,14 +303,15 @@ export async function deleteCategoryAction(userId: string, code: string) {
   return { success: true }
 }
 
-export async function addFieldAction(userId: string, data: Prisma.FieldCreateInput) {
+export async function addFieldAction(data: Prisma.FieldCreateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = fieldFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const field = await createField(userId, {
+  const field = await createField(scope, {
     code: codeFromName(validatedForm.data.name),
     name: validatedForm.data.name,
     type: validatedForm.data.type,
@@ -275,14 +326,15 @@ export async function addFieldAction(userId: string, data: Prisma.FieldCreateInp
   return { success: true, field }
 }
 
-export async function editFieldAction(userId: string, code: string, data: Prisma.FieldUpdateInput) {
+export async function editFieldAction(code: string, data: Prisma.FieldUpdateInput) {
+  const scope = await getCurrentUser()
   const validatedForm = fieldFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
     return { success: false, error: validatedForm.error.message }
   }
 
-  const field = await updateField(userId, code, {
+  const field = await updateField(scope, code, {
     name: validatedForm.data.name,
     type: validatedForm.data.type,
     llm_prompt: validatedForm.data.llm_prompt,
@@ -295,9 +347,10 @@ export async function editFieldAction(userId: string, code: string, data: Prisma
   return { success: true, field }
 }
 
-export async function deleteFieldAction(userId: string, code: string) {
+export async function deleteFieldAction(code: string) {
+  const scope = await getCurrentUser()
   try {
-    await deleteField(userId, code)
+    await deleteField(scope, code)
   } catch (error) {
     return { success: false, error: "Failed to delete field" + error }
   }

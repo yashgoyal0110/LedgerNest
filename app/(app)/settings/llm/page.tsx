@@ -7,8 +7,8 @@ import { getSettings } from "@/models/settings"
 
 export default async function LlmSettingsPage() {
   const user = await getCurrentUser()
-  const settings = await getSettings(user.id)
-  const fields = await getFields(user.id)
+  const settings = await getSettings(user)
+  const fields = await getFields(user)
 
   return (
     <div className="space-y-6">

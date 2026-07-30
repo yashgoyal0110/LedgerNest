@@ -1,61 +1,159 @@
 import { prisma } from "@/lib/db"
-import { Prisma } from "@/prisma/client"
+import { tenantScope, UNLIMITED } from "@/lib/tenant"
+import { Prisma, Tenant, User } from "@/prisma/client"
 import { cache } from "react"
-import { isDatabaseEmpty } from "./defaults"
-import { createUserDefaults } from "./defaults"
+import { createUserDefaults, isDatabaseEmpty } from "./defaults"
+import { createTenant, uniqueTenantSlug } from "./tenants"
+
+export type UserWithTenant = User & { tenant: Tenant }
 
 export const SELF_HOSTED_USER = {
   email: "ledgernest@localhost",
   name: "LedgerNest",
-  membershipPlan: "unlimited",
 }
 
-export const getSelfHostedUser = cache(async () => {
+export const SELF_HOSTED_TENANT = {
+  slug: "self-hosted",
+  name: "LedgerNest",
+  plan: "unlimited",
+  aiCreditsLimit: UNLIMITED,
+  storageLimit: UNLIMITED,
+}
+
+export const getSelfHostedUser = cache(async (): Promise<UserWithTenant | null> => {
   if (!process.env.DATABASE_URL) {
     return null // fix for CI, do not remove
   }
 
   return await prisma.user.findFirst({
     where: { email: SELF_HOSTED_USER.email },
+    include: { tenant: true },
   })
 })
 
-export const getOrCreateSelfHostedUser = cache(async () => {
-  return await prisma.user.upsert({
+export const getOrCreateSelfHostedUser = cache(async (): Promise<UserWithTenant> => {
+  const existing = await prisma.user.findUnique({
     where: { email: SELF_HOSTED_USER.email },
-    update: SELF_HOSTED_USER,
-    create: SELF_HOSTED_USER,
+    include: { tenant: true },
   })
+
+  if (existing) {
+    return existing
+  }
+
+  const tenant =
+    (await prisma.tenant.findUnique({ where: { slug: SELF_HOSTED_TENANT.slug } })) ??
+    (await createTenant(SELF_HOSTED_TENANT))
+
+  const user = await prisma.user.create({
+    data: { ...SELF_HOSTED_USER, tenantId: tenant.id, role: "owner" },
+    include: { tenant: true },
+  })
+
+  await createUserDefaults(tenantScope(user))
+
+  return user
 })
 
-export async function getOrCreateCloudUser(email: string, data: Prisma.UserCreateInput) {
-  const user = await prisma.user.upsert({
-    where: { email: email.toLowerCase() },
-    update: data,
-    create: data,
+/**
+ * Signs a cloud user in for the first time by giving them their own workspace.
+ * Existing users keep the workspace they already belong to.
+ */
+export type TenantSubscription = {
+  stripeCustomerId?: string
+  plan?: string
+  membershipExpiresAt?: Date
+  storageLimit?: number
+  aiCredits?: number
+}
+
+function subscriptionToTenantData(subscription: TenantSubscription): Prisma.TenantUpdateInput {
+  return {
+    ...(subscription.stripeCustomerId ? { stripeCustomerId: subscription.stripeCustomerId } : {}),
+    ...(subscription.plan ? { plan: subscription.plan } : {}),
+    ...(subscription.membershipExpiresAt ? { membershipExpiresAt: subscription.membershipExpiresAt } : {}),
+    ...(subscription.storageLimit !== undefined ? { storageLimit: subscription.storageLimit } : {}),
+    ...(subscription.aiCredits !== undefined
+      ? { aiBalance: subscription.aiCredits, aiCreditsLimit: subscription.aiCredits }
+      : {}),
+  }
+}
+
+export async function getOrCreateCloudUser(
+  email: string,
+  data: Omit<Prisma.UserCreateInput, "tenant">,
+  subscription: TenantSubscription = {}
+): Promise<UserWithTenant> {
+  const normalizedEmail = email.toLowerCase()
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    include: { tenant: true },
   })
 
-  if (await isDatabaseEmpty(user.id)) {
-    await createUserDefaults(user.id)
+  if (existing) {
+    await prisma.tenant.update({
+      where: { id: existing.tenantId },
+      data: subscriptionToTenantData(subscription),
+    })
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: { name: data.name, avatar: data.avatar },
+      include: { tenant: true },
+    })
+    await ensureWorkspaceIsSetUp(user)
+    return user
   }
+
+  const workspaceName = data.name || normalizedEmail.split("@")[0]
+  const tenant = await createTenant({
+    name: workspaceName,
+    slug: await uniqueTenantSlug(normalizedEmail.split("@")[0]),
+    plan: subscription.plan,
+    aiCreditsLimit: subscription.aiCredits,
+    storageLimit: subscription.storageLimit,
+    membershipExpiresAt: subscription.membershipExpiresAt ?? null,
+  })
+
+  if (subscription.stripeCustomerId) {
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { stripeCustomerId: subscription.stripeCustomerId },
+    })
+  }
+
+  const user = await prisma.user.create({
+    data: { ...data, email: normalizedEmail, tenantId: tenant.id, role: "owner" },
+    include: { tenant: true },
+  })
+
+  await createUserDefaults(tenantScope(user))
 
   return user
 }
 
-export const getUserById = cache(async (id: string) => {
+export async function ensureWorkspaceIsSetUp(user: UserWithTenant | User) {
+  const scope = tenantScope(user)
+  if (await isDatabaseEmpty(scope)) {
+    await createUserDefaults(scope)
+  }
+}
+
+export const getUserById = cache(async (id: string): Promise<UserWithTenant | null> => {
   return await prisma.user.findUnique({
     where: { id },
+    include: { tenant: true },
   })
 })
 
-export const getUserByEmail = cache(async (email: string) => {
+export const getUserByEmail = cache(async (email: string): Promise<UserWithTenant | null> => {
   return await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
+    include: { tenant: true },
   })
 })
 
-export const getUserByStripeCustomerId = cache(async (customerId: string) => {
-  return await prisma.user.findFirst({
+export const getTenantByStripeCustomerId = cache(async (customerId: string) => {
+  return await prisma.tenant.findFirst({
     where: { stripeCustomerId: customerId },
   })
 })

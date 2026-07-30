@@ -23,13 +23,13 @@ const TRANSACTIONS_PER_PAGE = 500
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<TransactionFilters> }) {
   const { page, ...filters } = await searchParams
   const user = await getCurrentUser()
-  const { transactions, total } = await getTransactions(user.id, filters, {
+  const { transactions, total } = await getTransactions(user, filters, {
     limit: TRANSACTIONS_PER_PAGE,
     offset: ((page ?? 1) - 1) * TRANSACTIONS_PER_PAGE,
   })
-  const categories = await getCategories(user.id)
-  const projects = await getProjects(user.id)
-  const fields = await getFields(user.id)
+  const categories = await getCategories(user)
+  const projects = await getProjects(user)
+  const fields = await getFields(user)
 
   // Reset page if user clicks a filter and no transactions are found
   if (page && page > 1 && transactions.length === 0) {

@@ -1,17 +1,17 @@
 import { resizeImage } from "@/lib/previews/images"
 import { pdfToImages } from "@/lib/previews/pdf"
-import { User } from "@/prisma/client"
+import { Tenant } from "@/prisma/client"
 
 export async function generateFilePreviews(
-  user: User,
+  tenant: Tenant,
   filePath: string,
   mimetype: string
 ): Promise<{ contentType: string; previews: string[] }> {
   if (mimetype === "application/pdf") {
-    const { contentType, pages } = await pdfToImages(user, filePath)
+    const { contentType, pages } = await pdfToImages(tenant, filePath)
     return { contentType, previews: pages }
   } else if (mimetype.startsWith("image/")) {
-    const { contentType, resizedPath } = await resizeImage(user, filePath)
+    const { contentType, resizedPath } = await resizeImage(tenant, filePath)
     return { contentType, previews: [resizedPath] }
   } else {
     return { contentType: mimetype, previews: [filePath] }

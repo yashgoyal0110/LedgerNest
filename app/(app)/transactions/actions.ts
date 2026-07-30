@@ -6,7 +6,7 @@ import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import {
   getDirectorySize,
   getTransactionFileUploadPath,
-  getUserUploadsDirectory,
+  getTenantUploadsDirectory,
   isEnoughStorageToUploadFile,
   safePathJoin,
 } from "@/lib/files"
@@ -21,7 +21,7 @@ import {
   updateTransactionFiles,
   findDuplicateTransaction,
 } from "@/models/transactions"
-import { updateUser } from "@/models/users"
+import { recalculateTenantStorage } from "@/models/tenants"
 import { Transaction } from "@/prisma/client"
 import { randomUUID } from "crypto"
 import { mkdir, writeFile } from "fs/promises"
@@ -45,7 +45,7 @@ export async function createTransactionAction(
 
     // --- Perform the deduplication check FIRST ---
     if (!forceSave) {
-      const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
+      const existingTransaction = await findDuplicateTransaction(user, transactionData)
 
       if (existingTransaction) {
         return {
@@ -60,7 +60,7 @@ export async function createTransactionAction(
       }
     }
 
-    const newTransaction = await createTransaction(user.id, transactionData)
+    const newTransaction = await createTransaction(user, transactionData)
 
     revalidatePath("/transactions")
     return { success: true, data: newTransaction }
@@ -83,7 +83,7 @@ export async function saveTransactionAction(
       return { success: false, error: validatedForm.error.message }
     }
 
-    const transaction = await updateTransaction(transactionId, user.id, validatedForm.data)
+    const transaction = await updateTransaction(transactionId, user, validatedForm.data)
 
     revalidatePath("/transactions")
     return { success: true, data: transaction }
@@ -99,10 +99,10 @@ export async function deleteTransactionAction(
 ): Promise<ActionState<Transaction>> {
   try {
     const user = await getCurrentUser()
-    const transaction = await getTransactionById(transactionId, user.id)
+    const transaction = await getTransactionById(transactionId, user)
     if (!transaction) throw new Error("Transaction not found")
 
-    await deleteTransaction(transaction.id, user.id)
+    await deleteTransaction(transaction.id, user)
 
     revalidatePath("/transactions")
 
@@ -122,22 +122,20 @@ export async function deleteTransactionFileAction(
   }
 
   const user = await getCurrentUser()
-  const transaction = await getTransactionById(transactionId, user.id)
+  const transaction = await getTransactionById(transactionId, user)
   if (!transaction) {
     return { success: false, error: "Transaction not found" }
   }
 
   await updateTransactionFiles(
-    transactionId,
-    user.id,
+    transactionId, user,
     transaction.files ? (transaction.files as string[]).filter((id) => id !== fileId) : []
   )
 
-  await deleteFile(fileId, user.id)
+  await deleteFile(fileId, user)
 
   // Update user storage used
-  const storageUsed = await getDirectorySize(getUserUploadsDirectory(user))
-  await updateUser(user.id, { storageUsed })
+  await recalculateTenantStorage(user.tenant)
 
   revalidatePath(`/transactions/${transactionId}`)
   return { success: true, data: transaction }
@@ -153,16 +151,16 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
     }
 
     const user = await getCurrentUser()
-    const transaction = await getTransactionById(transactionId, user.id)
+    const transaction = await getTransactionById(transactionId, user)
     if (!transaction) {
       return { success: false, error: "Transaction not found" }
     }
 
-    const userUploadsDirectory = getUserUploadsDirectory(user)
+    const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
 
     // Check limits
     const totalFileSize = files.reduce((acc, file) => acc + file.size, 0)
-    if (!isEnoughStorageToUploadFile(user, totalFileSize)) {
+    if (!isEnoughStorageToUploadFile(user.tenant, totalFileSize)) {
       return { success: false, error: `Insufficient storage to upload new files` }
     }
 
@@ -186,7 +184,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
         await writeFile(fullFilePath, buffer)
 
         // Create file record in database
-        const fileRecord = await createFile(user.id, {
+        const fileRecord = await createFile(user, {
           id: fileUuid,
           filename: file.name,
           path: relativeFilePath,
@@ -204,16 +202,14 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
 
     // Update invoice with the new file ID
     await updateTransactionFiles(
-      transactionId,
-      user.id,
+      transactionId, user,
       transaction.files
         ? [...(transaction.files as string[]), ...fileRecords.map((file) => file.id)]
         : fileRecords.map((file) => file.id)
     )
 
     // Update user storage used
-    const storageUsed = await getDirectorySize(getUserUploadsDirectory(user))
-    await updateUser(user.id, { storageUsed })
+    await recalculateTenantStorage(user.tenant)
 
     revalidatePath(`/transactions/${transactionId}`)
     return { success: true }
@@ -226,7 +222,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
 export async function bulkDeleteTransactionsAction(transactionIds: string[]) {
   try {
     const user = await getCurrentUser()
-    await bulkDeleteTransactions(transactionIds, user.id)
+    await bulkDeleteTransactions(transactionIds, user)
     revalidatePath("/transactions")
     return { success: true }
   } catch (error) {
@@ -238,7 +234,7 @@ export async function bulkDeleteTransactionsAction(transactionIds: string[]) {
 export async function updateFieldVisibilityAction(fieldCode: string, isVisible: boolean) {
   try {
     const user = await getCurrentUser()
-    await updateField(user.id, fieldCode, {
+    await updateField(user, fieldCode, {
       isVisibleInList: isVisible,
     })
     return { success: true }

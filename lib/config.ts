@@ -18,6 +18,10 @@ const envSchema = z.object({
   RESEND_AUDIENCE_ID: z.string().default(""),
   STRIPE_SECRET_KEY: z.string().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().default(""),
+  DEMO_MODE: z.enum(["true", "false"]).default("true"),
+  DEMO_EMAIL: z.string().default("demo@ledgernest.app"),
+  DEMO_PASSWORD: z.string().min(8, "Demo password must be at least 8 characters").default("LedgerDemo2026"),
+  CRON_SECRET: z.string().default(""),
 })
 
 const env = envSchema.parse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")))
@@ -69,6 +73,18 @@ const config = {
     apiKey: env.RESEND_API_KEY,
     from: env.RESEND_FROM_EMAIL,
     audienceId: env.RESEND_AUDIENCE_ID,
+  },
+  demo: {
+    // A shared, self-resetting workspace anyone can enter in one click.
+    // Disabled automatically in self-hosted mode, where there is only one user.
+    isEnabled: env.DEMO_MODE === "true" && env.SELF_HOSTED_MODE !== "true",
+    email: env.DEMO_EMAIL.toLowerCase(),
+    password: env.DEMO_PASSWORD,
+    name: "Demo User",
+    workspaceName: "Northwind Studio",
+  },
+  cron: {
+    secret: env.CRON_SECRET,
   },
 } as const
 

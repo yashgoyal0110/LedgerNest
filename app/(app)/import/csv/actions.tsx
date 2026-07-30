@@ -61,7 +61,7 @@ export async function saveTransactionsAction(
       for (const [fieldCode, value] of Object.entries(row)) {
         const fieldDef = EXPORT_AND_IMPORT_FIELD_MAP[fieldCode]
         if (fieldDef?.import) {
-          transactionData[fieldCode] = await fieldDef.import(user.id, value as string)
+          transactionData[fieldCode] = await fieldDef.import(user, value as string)
         } else {
           transactionData[fieldCode] = value as string
         }
@@ -71,7 +71,7 @@ export async function saveTransactionsAction(
 
       // --- Deduplication Check ---
       if (!shouldForceSave) {
-        const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
+        const existingTransaction = await findDuplicateTransaction(user, transactionData)
 
         if (existingTransaction) {
           return {
@@ -85,7 +85,7 @@ export async function saveTransactionsAction(
           }
         }
       }
-      await createTransaction(user.id, transactionData)
+      await createTransaction(user, transactionData)
 
       currentIndex++
     }

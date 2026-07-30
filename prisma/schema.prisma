@@ -10,36 +10,85 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id                  String        @id @default(uuid()) @db.Uuid
-  email               String        @unique
-  name                String
-  avatar              String?
-  settings            Setting[]
-  categories          Category[]
-  projects            Project[]
-  fields              Field[]
-  files               File[]
-  currencies          Currency[]
-  transactions        Transaction[]
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime      @updatedAt @map("updated_at")
-  stripeCustomerId    String?       @map("stripe_customer_id")
-  membershipPlan      String?       @map("membership_plan")
-  membershipExpiresAt DateTime?     @map("membership_expires_at")
-  emailVerified       Boolean       @default(false) @map("is_email_verified")
-  storageUsed         Int           @default(0) @map("storage_used")
-  storageLimit        Int           @default(-1) @map("storage_limit")
-  aiBalance           Int           @default(0) @map("ai_balance")
-  businessName        String?       @map("business_name")
-  businessAddress     String?       @map("business_address")
-  businessBankDetails String?       @map("business_bank_details")
-  businessLogo        String?       @map("business_logo")
-  accounts            Account[]
-  sessions            Session[]
-  appData             AppData[]
-  progress            Progress[]
+/// A Tenant is an isolated workspace. Every row of business data belongs to
+/// exactly one tenant, and every user is a member of exactly one tenant.
+/// Plan, quota and billing live here, not on the user.
+model Tenant {
+  id       String  @id @default(uuid()) @db.Uuid
+  slug     String  @unique
+  name     String
+  /// Marks the shared, self-resetting demo workspace.
+  isDemo   Boolean @default(false) @map("is_demo")
+  isActive Boolean @default(true) @map("is_active")
 
+  plan                String    @default("free")
+  membershipExpiresAt DateTime? @map("membership_expires_at")
+  stripeCustomerId    String?   @map("stripe_customer_id")
+
+  /// Remaining AI analyses. Every new tenant starts with `aiCreditsLimit`.
+  aiBalance      Int @default(5) @map("ai_balance")
+  /// How many credits a refill grants, and the size of the quota bar in the UI.
+  aiCreditsLimit Int @default(5) @map("ai_credits_limit")
+  /// When set, the balance is topped back up to `aiCreditsLimit` after this
+  /// many minutes. Used by the demo workspace (60 minutes); null = no refill.
+  aiRefillMinutes Int?      @map("ai_refill_minutes")
+  aiRefilledAt    DateTime? @map("ai_refilled_at")
+
+  storageUsed  Int @default(0) @map("storage_used")
+  storageLimit Int @default(-1) @map("storage_limit")
+  /// Directory name this workspace's uploads live under. Kept separate from
+  /// `slug` so existing installations keep their on-disk layout after the
+  /// migration to multi-tenancy.
+  storagePrefix String @unique @map("storage_prefix")
+
+  businessName        String? @map("business_name")
+  businessAddress     String? @map("business_address")
+  businessBankDetails String? @map("business_bank_details")
+  businessLogo        String? @map("business_logo")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users        User[]
+  settings     Setting[]
+  categories   Category[]
+  projects     Project[]
+  fields       Field[]
+  files        File[]
+  currencies   Currency[]
+  transactions Transaction[]
+  appData      AppData[]
+  progress     Progress[]
+
+  @@index([isDemo])
+  @@map("tenants")
+}
+
+model User {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// owner | admin | member
+  role          String        @default("owner")
+  email         String        @unique
+  name          String
+  avatar        String?
+  emailVerified Boolean       @default(false) @map("is_email_verified")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  settings      Setting[]
+  categories    Category[]
+  projects      Project[]
+  fields        Field[]
+  files         File[]
+  currencies    Currency[]
+  transactions  Transaction[]
+  accounts      Account[]
+  sessions      Session[]
+  appData       AppData[]
+  progress      Progress[]
+
+  @@index([tenantId])
   @@map("users")
 }
 
@@ -90,6 +139,8 @@ model Verification {
 
 model Setting {
   id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId      String  @map("user_id") @db.Uuid
   user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   code        String
@@ -97,12 +148,15 @@ model Setting {
   description String?
   value       String?
 
-  @@unique([userId, code])
+  @@unique([tenantId, code])
+  @@index([userId])
   @@map("settings")
 }
 
 model Category {
   id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId       String        @map("user_id") @db.Uuid
   user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   code         String
@@ -112,12 +166,15 @@ model Category {
   transactions Transaction[]
   createdAt    DateTime      @default(now()) @map("created_at")
 
-  @@unique([userId, code])
+  @@unique([tenantId, code])
+  @@index([userId])
   @@map("categories")
 }
 
 model Project {
   id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId       String        @map("user_id") @db.Uuid
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   code         String
@@ -127,12 +184,15 @@ model Project {
   transactions Transaction[]
   createdAt    DateTime      @default(now()) @map("created_at")
 
-  @@unique([userId, code])
+  @@unique([tenantId, code])
+  @@index([userId])
   @@map("projects")
 }
 
 model Field {
   id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId              String   @map("user_id") @db.Uuid
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   code                String
@@ -146,12 +206,15 @@ model Field {
   isRequired          Boolean  @default(false) @map("is_required")
   isExtra             Boolean  @default(true) @map("is_extra")
 
-  @@unique([userId, code])
+  @@unique([tenantId, code])
+  @@index([userId])
   @@map("fields")
 }
 
 model File {
   id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId            String   @map("user_id") @db.Uuid
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   filename          String
@@ -163,11 +226,14 @@ model File {
   cachedParseResult Json?    @map("cached_parse_result")
   createdAt         DateTime @default(now()) @map("created_at")
 
+  @@index([tenantId])
   @@map("files")
 }
 
 model Transaction {
   id                    String    @id @default(uuid()) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId                String    @map("user_id") @db.Uuid
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name                  String?
@@ -182,15 +248,16 @@ model Transaction {
   note                  String?
   files                 Json      @default("[]")
   extra                 Json?
-  category              Category? @relation(fields: [categoryCode, userId], references: [code, userId])
+  category              Category? @relation(fields: [categoryCode, tenantId], references: [code, tenantId])
   categoryCode          String?   @map("category_code")
-  project               Project?  @relation(fields: [projectCode, userId], references: [code, userId])
+  project               Project?  @relation(fields: [projectCode, tenantId], references: [code, tenantId])
   projectCode           String?   @map("project_code")
   issuedAt              DateTime? @map("issued_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   text                  String?
 
+  @@index([tenantId])
   @@index([userId])
   @@index([projectCode])
   @@index([categoryCode])
@@ -202,29 +269,37 @@ model Transaction {
 }
 
 model Currency {
-  id     String  @id @default(uuid()) @db.Uuid
-  userId String? @map("user_id") @db.Uuid
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  code   String
-  name   String
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String? @map("user_id") @db.Uuid
+  user     User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code     String
+  name     String
 
-  @@unique([userId, code])
+  @@unique([tenantId, code])
+  @@index([userId])
   @@map("currencies")
 }
 
 model AppData {
-  id     String @id @default(uuid()) @db.Uuid
-  app    String
-  userId String @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  data   Json
+  id       String @id @default(uuid()) @db.Uuid
+  app      String
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String @map("user_id") @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data     Json
 
-  @@unique([userId, app])
+  @@unique([tenantId, app])
+  @@index([userId])
   @@map("app_data")
 }
 
 model Progress {
   id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId    String   @map("user_id") @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String
@@ -233,6 +308,7 @@ model Progress {
   total     Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([tenantId])
   @@index([userId])
   @@map("progress")
 }

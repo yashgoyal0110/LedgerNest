@@ -1,6 +1,8 @@
 import config from "@/lib/config"
 import { PLANS, stripeClient } from "@/lib/stripe"
-import { getOrCreateCloudUser, getUserByStripeCustomerId, updateUser } from "@/models/users"
+import { asTenantId } from "@/lib/tenant"
+import { updateTenant } from "@/models/tenants"
+import { getOrCreateCloudUser, getTenantByStripeCustomerId } from "@/models/users"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 
@@ -81,30 +83,43 @@ async function handleUserSubscriptionUpdate(
     throw new Error(`Plan not found for price ID: ${item.price.id}`)
   }
 
-  let user = await getUserByStripeCustomerId(customerId)
-  if (!user) {
-    const customer = (await stripeClient.customers.retrieve(customerId)) as Stripe.Customer
-    console.log(`User not found for customer ${customerId}, creating new user with email ${customer.email}`)
-
-    user = await getOrCreateCloudUser(customer.email as string, {
-      email: customer.email as string,
-      name: customer.name as string,
-      stripeCustomerId: customer.id,
-    })
-  }
-
   const newMembershipExpiresAt = new Date(item.current_period_end * 1000)
 
-  await updateUser(user.id, {
-    membershipPlan: plan.code,
+  // Subscriptions are billed per workspace, so the plan and its quotas land on
+  // the tenant, not on whichever member happens to hold the card.
+  const tenant = await getTenantByStripeCustomerId(customerId)
+  if (!tenant) {
+    const customer = (await stripeClient.customers.retrieve(customerId)) as Stripe.Customer
+    console.log(`Workspace not found for customer ${customerId}, creating one for ${customer.email}`)
+
+    // Creating the workspace already applies the plan and its quotas.
+    await getOrCreateCloudUser(
+      customer.email as string,
+      {
+        email: customer.email as string,
+        name: customer.name as string,
+      },
+      {
+        stripeCustomerId: customer.id,
+        plan: plan.code,
+        membershipExpiresAt: newMembershipExpiresAt,
+        storageLimit: plan.limits.storage,
+        aiCredits: plan.limits.ai,
+      }
+    )
+    return
+  }
+
+  await updateTenant(asTenantId(tenant.id), {
+    plan: plan.code,
     membershipExpiresAt:
-      user.membershipExpiresAt && user.membershipExpiresAt > newMembershipExpiresAt
-        ? user.membershipExpiresAt
+      tenant.membershipExpiresAt && tenant.membershipExpiresAt > newMembershipExpiresAt
+        ? tenant.membershipExpiresAt
         : newMembershipExpiresAt,
     storageLimit: plan.limits.storage,
     aiBalance: plan.limits.ai,
-    updatedAt: new Date(),
+    aiCreditsLimit: plan.limits.ai,
   })
 
-  console.log(`Updated user ${user.id} with plan ${plan.code} and expires at ${newMembershipExpiresAt}`)
+  console.log(`Updated workspace ${tenant.id} with plan ${plan.code}, expiring at ${newMembershipExpiresAt}`)
 }

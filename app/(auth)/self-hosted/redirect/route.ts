@@ -1,5 +1,6 @@
 import config from "@/lib/config"
 import { createUserDefaults, isDatabaseEmpty } from "@/models/defaults"
+import { tenantScope } from "@/lib/tenant"
 import { getOrCreateSelfHostedUser, getSelfHostedUser } from "@/models/users"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
@@ -18,8 +19,8 @@ export async function GET() {
     redirect(config.selfHosted.welcomeUrl)
   }
 
-  if (await isDatabaseEmpty(user.id)) {
-    await createUserDefaults(user.id)
+  if (await isDatabaseEmpty(tenantScope(user))) {
+    await createUserDefaults(tenantScope(user))
   }
 
   revalidatePath("/dashboard")

@@ -12,8 +12,8 @@ export type InvoiceAppData = {
 
 export default async function InvoicesApp() {
   const user = await getCurrentUser()
-  const settings = await getSettings(user.id)
-  const currencies = await getCurrencies(user.id)
+  const settings = await getSettings(user)
+  const currencies = await getCurrencies(user)
   const appData = (await getAppData(user, "invoices")) as InvoiceAppData | null
 
   return (

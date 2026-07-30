@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 
 type BackupSetting = {
   filename: string
   model: any
-  backup: (userId: string, row: any) => Record<string, any>
-  restore: (userId: string, json: Record<string, any>) => any
+  backup: (scope: TenantScope, row: any) => Record<string, any>
+  restore: (scope: TenantScope, json: Record<string, any>) => any
 }
 
 // Ordering is important here
@@ -12,7 +13,7 @@ export const MODEL_BACKUP: BackupSetting[] = [
   {
     filename: "settings.json",
     model: prisma.setting,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         code: row.code,
@@ -21,46 +22,40 @@ export const MODEL_BACKUP: BackupSetting[] = [
         value: row.value,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         code: json.code,
         name: json.name,
         description: json.description,
         value: json.value,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "currencies.json",
     model: prisma.currency,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         code: row.code,
         name: row.name,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         code: json.code,
         name: json.name,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "categories.json",
     model: prisma.category,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         code: row.code,
@@ -70,25 +65,22 @@ export const MODEL_BACKUP: BackupSetting[] = [
         createdAt: row.createdAt,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         code: json.code,
         name: json.name,
         color: json.color,
         llm_prompt: json.llm_prompt,
         createdAt: json.createdAt,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "projects.json",
     model: prisma.project,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         code: row.code,
@@ -98,25 +90,22 @@ export const MODEL_BACKUP: BackupSetting[] = [
         createdAt: row.createdAt,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         code: json.code,
         name: json.name,
         color: json.color,
         llm_prompt: json.llm_prompt,
         createdAt: json.createdAt,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "fields.json",
     model: prisma.field,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         code: row.code,
@@ -130,7 +119,7 @@ export const MODEL_BACKUP: BackupSetting[] = [
         isExtra: row.isExtra,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         code: json.code,
         name: json.name,
@@ -141,18 +130,15 @@ export const MODEL_BACKUP: BackupSetting[] = [
         isVisibleInAnalysis: json.isVisibleInAnalysis,
         isRequired: json.isRequired,
         isExtra: json.isExtra,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "files.json",
     model: prisma.file,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         filename: row.filename,
@@ -163,7 +149,7 @@ export const MODEL_BACKUP: BackupSetting[] = [
         createdAt: row.createdAt,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         id: json.id,
         filename: json.filename,
@@ -171,18 +157,15 @@ export const MODEL_BACKUP: BackupSetting[] = [
         metadata: json.metadata,
         isReviewed: json.isReviewed,
         mimetype: json.mimetype,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
       }
     },
   },
   {
     filename: "transactions.json",
     model: prisma.transaction,
-    backup: (userId: string, row: any) => {
+    backup: (scope: TenantScope, row: any) => {
       return {
         id: row.id,
         name: row.name,
@@ -204,7 +187,7 @@ export const MODEL_BACKUP: BackupSetting[] = [
         text: row.text,
       }
     },
-    restore: (userId: string, json: any) => {
+    restore: (scope: TenantScope, json: any) => {
       return {
         id: json.id,
         name: json.name,
@@ -219,42 +202,31 @@ export const MODEL_BACKUP: BackupSetting[] = [
         files: json.files,
         extra: json.extra,
         issuedAt: json.issuedAt,
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
-        category: {
-          connect: {
-            userId_code: { userId, code: json.categoryCode },
-          },
-        },
-        project: {
-          connect: {
-            userId_code: { userId, code: json.projectCode },
-          },
-        },
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        categoryCode: json.categoryCode,
+        projectCode: json.projectCode,
       }
     },
   },
 ]
 
-export async function modelToJSON(userId: string, backupSettings: BackupSetting): Promise<string> {
-  const data = await backupSettings.model.findMany({ where: { userId } })
+export async function modelToJSON(scope: TenantScope, backupSettings: BackupSetting): Promise<string> {
+  const data = await backupSettings.model.findMany({ where: { tenantId: scope.tenantId } })
 
   if (!data || data.length === 0) {
     return "[]"
   }
 
   return JSON.stringify(
-    data.map((row: any) => backupSettings.backup(userId, row)),
+    data.map((row: any) => backupSettings.backup(scope, row)),
     null,
     2
   )
 }
 
 export async function modelFromJSON(
-  userId: string,
+  scope: TenantScope,
   backupSettings: BackupSetting,
   jsonContent: string
 ): Promise<number> {
@@ -272,7 +244,7 @@ export async function modelFromJSON(
       const record = preprocessRowData(rawRecord)
 
       try {
-        const data = await backupSettings.restore(userId, record)
+        const data = await backupSettings.restore(scope, record)
         await backupSettings.model.create({ data })
       } catch (error) {
         console.error(`Error importing record:`, error)

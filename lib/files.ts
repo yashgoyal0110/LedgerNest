@@ -1,4 +1,4 @@
-import { File, Transaction, User } from "@/prisma/client"
+import { File, Tenant, Transaction } from "@/prisma/client"
 import { formatDate } from "date-fns"
 import { access, constants, readdir, stat } from "fs/promises"
 import path from "path"
@@ -10,16 +10,19 @@ export const FILE_PREVIEWS_DIRECTORY_NAME = "previews"
 export const FILE_STATIC_DIRECTORY_NAME = "static"
 export const FILE_IMPORT_CSV_DIRECTORY_NAME = "csv"
 
-export function getUserUploadsDirectory(user: User) {
-  return safePathJoin(FILE_UPLOAD_PATH, user.email)
+/** Uploads are stored per workspace, so every member of a tenant sees the same files. */
+export type TenantStorage = Pick<Tenant, "storagePrefix">
+
+export function getTenantUploadsDirectory(tenant: TenantStorage) {
+  return safePathJoin(FILE_UPLOAD_PATH, tenant.storagePrefix)
 }
 
-export function getStaticDirectory(user: User) {
-  return safePathJoin(getUserUploadsDirectory(user), FILE_STATIC_DIRECTORY_NAME)
+export function getStaticDirectory(tenant: TenantStorage) {
+  return safePathJoin(getTenantUploadsDirectory(tenant), FILE_STATIC_DIRECTORY_NAME)
 }
 
-export function getUserPreviewsDirectory(user: User) {
-  return safePathJoin(getUserUploadsDirectory(user), FILE_PREVIEWS_DIRECTORY_NAME)
+export function getTenantPreviewsDirectory(tenant: TenantStorage) {
+  return safePathJoin(getTenantUploadsDirectory(tenant), FILE_PREVIEWS_DIRECTORY_NAME)
 }
 
 export function unsortedFilePath(fileUuid: string, filename: string) {
@@ -37,9 +40,8 @@ export function getTransactionFileUploadPath(fileUuid: string, filename: string,
   return formatFilePath(storedFileName, transaction.issuedAt || new Date())
 }
 
-export function fullPathForFile(user: User, file: File) {
-  const userUploadsDirectory = getUserUploadsDirectory(user)
-  return safePathJoin(userUploadsDirectory, file.path)
+export function fullPathForFile(tenant: TenantStorage, file: File) {
+  return safePathJoin(getTenantUploadsDirectory(tenant), file.path)
 }
 
 export function getTransactionExportRelativeFolder(transaction: Transaction, totalFiles: number): string {
@@ -108,9 +110,9 @@ export async function getDirectorySize(directoryPath: string) {
   return totalSize
 }
 
-export function isEnoughStorageToUploadFile(user: User, fileSize: number) {
-  if (config.selfHosted.isEnabled || user.storageLimit < 0) {
+export function isEnoughStorageToUploadFile(tenant: Tenant, fileSize: number) {
+  if (config.selfHosted.isEnabled || tenant.storageLimit < 0) {
     return true
   }
-  return user.storageUsed + fileSize <= user.storageLimit
+  return tenant.storageUsed + fileSize <= tenant.storageLimit
 }

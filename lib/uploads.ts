@@ -1,23 +1,30 @@
-import { File as PrismaFile, User } from "@/prisma/client"
+import { File as PrismaFile, Tenant } from "@/prisma/client"
 import { createFile } from "@/models/files"
 import { randomUUID } from "crypto"
 import { mkdir, writeFile } from "fs/promises"
 import path from "path"
 import sharp from "sharp"
 import config from "./config"
-import { getStaticDirectory, getUserUploadsDirectory, isEnoughStorageToUploadFile, safePathJoin, unsortedFilePath } from "./files"
+import {
+  getStaticDirectory,
+  getTenantUploadsDirectory,
+  isEnoughStorageToUploadFile,
+  safePathJoin,
+  unsortedFilePath,
+} from "./files"
+import { TenantScope } from "./tenant"
 
 export async function uploadStaticImage(
-  user: User,
+  tenant: Tenant,
   file: File,
   saveFileName: string,
   maxWidth: number = config.upload.images.maxWidth,
   maxHeight: number = config.upload.images.maxHeight,
   quality: number = config.upload.images.quality
 ) {
-  const uploadDirectory = getStaticDirectory(user)
+  const uploadDirectory = getStaticDirectory(tenant)
 
-  if (!isEnoughStorageToUploadFile(user, file.size)) {
+  if (!isEnoughStorageToUploadFile(tenant, file.size)) {
     throw Error("Not enough space to upload the file")
   }
 
@@ -62,21 +69,22 @@ export async function uploadStaticImage(
 }
 
 export async function ingestUnsortedFile(
-  user: User,
+  tenant: Tenant,
+  scope: TenantScope,
   input: { buffer: Buffer; filename: string; mimetype: string; metadata?: Record<string, unknown> }
 ): Promise<PrismaFile> {
-  if (!isEnoughStorageToUploadFile(user, input.buffer.length)) {
+  if (!isEnoughStorageToUploadFile(tenant, input.buffer.length)) {
     throw new Error("Not enough space to upload the file")
   }
 
   const fileUuid = randomUUID()
   const relativeFilePath = unsortedFilePath(fileUuid, input.filename)
-  const fullFilePath = safePathJoin(getUserUploadsDirectory(user), relativeFilePath)
+  const fullFilePath = safePathJoin(getTenantUploadsDirectory(tenant), relativeFilePath)
 
   await mkdir(path.dirname(fullFilePath), { recursive: true })
   await writeFile(fullFilePath, input.buffer)
 
-  return await createFile(user.id, {
+  return await createFile(scope, {
     id: fileUuid,
     filename: input.filename,
     path: relativeFilePath,

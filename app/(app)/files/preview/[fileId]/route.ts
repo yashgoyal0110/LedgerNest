@@ -20,21 +20,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
 
   try {
     // Find file in database
-    const file = await getFileById(fileId, user.id)
+    const file = await getFileById(fileId, user)
 
     if (!file || file.userId !== user.id) {
       return new NextResponse("File not found or does not belong to the user", { status: 404 })
     }
 
     // Check if file exists on disk
-    const fullFilePath = fullPathForFile(user, file)
+    const fullFilePath = fullPathForFile(user.tenant, file)
     const isFileExists = await fileExists(fullFilePath)
     if (!isFileExists) {
       return new NextResponse(`File not found on disk: ${file.path}`, { status: 404 })
     }
 
     // Generate previews
-    const { contentType, previews } = await generateFilePreviews(user, fullFilePath, file.mimetype)
+    const { contentType, previews } = await generateFilePreviews(user.tenant, fullFilePath, file.mimetype)
     if (page > previews.length) {
       return new NextResponse("Page not found", { status: 404 })
     }

@@ -1,18 +1,18 @@
 import { prisma } from "@/lib/db"
-import { User } from "@/prisma/client"
+import { TenantScope } from "@/lib/tenant"
 
-export const getAppData = async (user: User, app: string) => {
+export const getAppData = async ({ tenantId }: TenantScope, app: string) => {
   const appData = await prisma.appData.findUnique({
-    where: { userId_app: { userId: user.id, app } },
+    where: { tenantId_app: { tenantId, app } },
   })
 
   return appData?.data
 }
 
-export const setAppData = async (user: User, app: string, data: any) => {
+export const setAppData = async ({ tenantId, userId }: TenantScope, app: string, data: any) => {
   await prisma.appData.upsert({
-    where: { userId_app: { userId: user.id, app } },
+    where: { tenantId_app: { tenantId, app } },
     update: { data },
-    create: { userId: user.id, app, data },
+    create: { tenantId, userId, app, data },
   })
 }

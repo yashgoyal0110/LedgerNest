@@ -1,5 +1,5 @@
 import { SettingsMap } from "@/models/settings"
-import { User } from "@/prisma/client"
+import { Tenant } from "@/prisma/client"
 import { addDays, format } from "date-fns"
 import { InvoiceFormData } from "./components/invoice-page"
 
@@ -9,15 +9,15 @@ export interface InvoiceTemplate {
   formData: InvoiceFormData
 }
 
-export default function defaultTemplates(user: User, settings: SettingsMap): InvoiceTemplate[] {
+export default function defaultTemplates(tenant: Tenant, settings: SettingsMap): InvoiceTemplate[] {
   const defaultTemplate: InvoiceFormData = {
     title: "INVOICE",
-    businessLogo: user.businessLogo,
+    businessLogo: tenant.businessLogo,
     invoiceNumber: "",
     date: format(new Date(), "yyyy-MM-dd"),
     dueDate: format(addDays(new Date(), 30), "yyyy-MM-dd"),
     currency: settings.default_currency || "EUR",
-    companyDetails: `${user.businessName}\n${user.businessAddress || ""}`,
+    companyDetails: `${tenant.businessName}\n${tenant.businessAddress || ""}`,
     companyDetailsLabel: "Bill From",
     billTo: "",
     billToLabel: "Bill To",
@@ -26,7 +26,7 @@ export default function defaultTemplates(user: User, settings: SettingsMap): Inv
     additionalTaxes: [{ name: "VAT", rate: 0, amount: 0 }],
     additionalFees: [],
     notes: "",
-    bankDetails: user.businessBankDetails || "",
+    bankDetails: tenant.businessBankDetails || "",
     issueDateLabel: "Issue Date",
     dueDateLabel: "Due Date",
     itemLabel: "Item",
@@ -39,12 +39,12 @@ export default function defaultTemplates(user: User, settings: SettingsMap): Inv
 
   const germanTemplate: InvoiceFormData = {
     title: "RECHNUNG",
-    businessLogo: user.businessLogo,
+    businessLogo: tenant.businessLogo,
     invoiceNumber: "",
     date: format(new Date(), "yyyy-MM-dd"),
     dueDate: format(addDays(new Date(), 30), "yyyy-MM-dd"),
     currency: "EUR",
-    companyDetails: `${user.businessName}\n${user.businessAddress || ""}`,
+    companyDetails: `${tenant.businessName}\n${tenant.businessAddress || ""}`,
     companyDetailsLabel: "Rechnungssteller",
     billTo: "",
     billToLabel: "Rechnungsempfänger",
@@ -53,7 +53,7 @@ export default function defaultTemplates(user: User, settings: SettingsMap): Inv
     additionalTaxes: [{ name: "MwSt", rate: 19, amount: 0 }],
     additionalFees: [],
     notes: "",
-    bankDetails: user.businessBankDetails || "",
+    bankDetails: tenant.businessBankDetails || "",
     issueDateLabel: "Rechnungsdatum",
     dueDateLabel: "Fälligkeitsdatum",
     itemLabel: "Position",

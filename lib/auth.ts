@@ -1,6 +1,7 @@
 import config from "@/lib/config"
-import { getSelfHostedUser, getUserByEmail, getUserById, SELF_HOSTED_USER } from "@/models/users"
-import { User } from "@/prisma/client"
+import { refillAiCreditsIfDue } from "@/models/tenants"
+import { getSelfHostedUser, getUserByEmail, getUserById, UserWithTenant } from "@/models/users"
+import { Tenant } from "@/prisma/client"
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { APIError } from "better-auth/api"
@@ -10,16 +11,27 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { prisma } from "./db"
 import { resend, sendOTPCodeEmail } from "./email"
+import { aiQuotaOf, AiQuota, TenantScope, tenantScope } from "./tenant"
+
+/** The signed-in user together with the workspace every query is scoped to. */
+export type AppUser = UserWithTenant & TenantScope
 
 export type UserProfile = {
   id: string
   name: string
   email: string
   avatar?: string
-  membershipPlan: string
-  storageUsed: number
-  storageLimit: number
-  aiBalance: number
+  role: string
+  tenant: {
+    id: string
+    name: string
+    slug: string
+    plan: string
+    isDemo: boolean
+    storageUsed: number
+    storageLimit: number
+  }
+  ai: AiQuota
 }
 
 export const auth = betterAuth({
@@ -31,6 +43,15 @@ export const auth = betterAuth({
     provider: "resend",
     from: config.email.from,
     resend,
+  },
+  // Password sign-in exists so the shared demo workspace can be entered in one
+  // click. Self-service password signup stays closed: real accounts are
+  // provisioned through the email-code flow.
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: true,
+    requireEmailVerification: false,
+    minPasswordLength: 8,
   },
   session: {
     strategy: "jwt",
@@ -75,39 +96,62 @@ export async function getSession() {
   })
 }
 
-export async function getCurrentUser(): Promise<User> {
+function withScope(user: UserWithTenant, tenant: Tenant): AppUser {
+  return { ...user, tenant, ...tenantScope(user) }
+}
+
+export async function getCurrentUser(): Promise<AppUser> {
   if (config.selfHosted.isEnabled) {
     const user = await getSelfHostedUser()
     if (user) {
-      return user
-    } else {
-      redirect(config.selfHosted.redirectUrl)
+      return withScope(user, await refillAiCreditsIfDue(user.tenant))
     }
+    redirect(config.selfHosted.redirectUrl)
   }
 
-  // Try to return user from session
   const session = await getSession()
   if (session && session.user) {
     const user = await getUserById(session.user.id)
     if (user) {
-      return user
+      // Demo workspaces top their AI credits back up on the way in, so the
+      // hourly reset happens whether or not the cron job is running.
+      return withScope(user, await refillAiCreditsIfDue(user.tenant))
     }
   }
 
-  // No session or user found
   redirect(config.auth.loginUrl)
 }
 
-export function isSubscriptionExpired(user: User) {
+export function toUserProfile(user: AppUser): UserProfile {
+  return {
+    id: user.id,
+    name: user.name || "",
+    email: user.email,
+    avatar: user.avatar ? user.avatar + "?" + user.id : undefined,
+    role: user.role,
+    tenant: {
+      id: user.tenant.id,
+      name: user.tenant.name,
+      slug: user.tenant.slug,
+      plan: user.tenant.plan,
+      isDemo: user.tenant.isDemo,
+      storageUsed: user.tenant.storageUsed,
+      storageLimit: user.tenant.storageLimit,
+    },
+    ai: aiQuotaOf(user.tenant),
+  }
+}
+
+export function isSubscriptionExpired(user: AppUser) {
   if (config.selfHosted.isEnabled) {
     return false
   }
-  return user.membershipExpiresAt && user.membershipExpiresAt < new Date()
+  return Boolean(user.tenant.membershipExpiresAt && user.tenant.membershipExpiresAt < new Date())
 }
 
-export function isAiBalanceExhausted(user: User) {
-  if (config.selfHosted.isEnabled || user.membershipPlan === SELF_HOSTED_USER.membershipPlan) {
+export function isAiBalanceExhausted(user: AppUser) {
+  if (config.selfHosted.isEnabled) {
     return false
   }
-  return user.aiBalance <= 0
+  return aiQuotaOf(user.tenant).isExhausted
 }

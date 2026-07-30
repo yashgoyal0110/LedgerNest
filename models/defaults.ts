@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_CURRENCIES,
@@ -16,38 +17,38 @@ export {
   DEFAULT_SETTINGS,
 } from "@/models/defaults-data"
 
-export async function createUserDefaults(userId: string) {
+export async function createUserDefaults({ tenantId, userId }: TenantScope) {
   // Default projects
   for (const project of DEFAULT_PROJECTS) {
     await prisma.project.upsert({
-      where: { userId_code: { code: project.code, userId } },
+      where: { tenantId_code: { code: project.code, tenantId } },
       update: { name: project.name, color: project.color, llm_prompt: project.llm_prompt },
-      create: { ...project, userId },
+      create: { ...project, tenantId, userId },
     })
   }
 
   // Default categories
   for (const category of DEFAULT_CATEGORIES) {
     await prisma.category.upsert({
-      where: { userId_code: { code: category.code, userId } },
+      where: { tenantId_code: { code: category.code, tenantId } },
       update: { name: category.name, color: category.color, llm_prompt: category.llm_prompt },
-      create: { ...category, userId },
+      create: { ...category, tenantId, userId },
     })
   }
 
   // Default currencies
   for (const currency of DEFAULT_CURRENCIES) {
     await prisma.currency.upsert({
-      where: { userId_code: { code: currency.code, userId } },
+      where: { tenantId_code: { code: currency.code, tenantId } },
       update: { name: currency.name },
-      create: { ...currency, userId },
+      create: { ...currency, tenantId, userId },
     })
   }
 
   // Default fields
   for (const field of DEFAULT_FIELDS) {
     await prisma.field.upsert({
-      where: { userId_code: { code: field.code, userId } },
+      where: { tenantId_code: { code: field.code, tenantId } },
       update: {
         name: field.name,
         type: field.type,
@@ -57,21 +58,21 @@ export async function createUserDefaults(userId: string) {
         isRequired: field.isRequired,
         isExtra: field.isExtra,
       },
-      create: { ...field, userId },
+      create: { ...field, tenantId, userId },
     })
   }
 
   // Default settings
   for (const setting of DEFAULT_SETTINGS) {
     await prisma.setting.upsert({
-      where: { userId_code: { code: setting.code, userId } },
+      where: { tenantId_code: { code: setting.code, tenantId } },
       update: { name: setting.name, description: setting.description, value: setting.value },
-      create: { ...setting, userId },
+      create: { ...setting, tenantId, userId },
     })
   }
 }
 
-export async function isDatabaseEmpty(userId: string) {
-  const fieldsCount = await prisma.field.count({ where: { userId } })
+export async function isDatabaseEmpty({ tenantId }: TenantScope) {
+  const fieldsCount = await prisma.field.count({ where: { tenantId } })
   return fieldsCount === 0
 }

@@ -7,10 +7,10 @@ import { NewTransactionDialogClient } from "./new-dialog"
 
 export async function NewTransactionDialog({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
-  const categories = await getCategories(user.id)
-  const currencies = await getCurrencies(user.id)
-  const settings = await getSettings(user.id)
-  const projects = await getProjects(user.id)
+  const categories = await getCategories(user)
+  const currencies = await getCurrencies(user)
+  const settings = await getSettings(user)
+  const projects = await getProjects(user)
 
   return (
     <NewTransactionDialogClient

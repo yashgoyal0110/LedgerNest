@@ -30,15 +30,20 @@ export default async function CloudPaymentSuccessPage({
 
     const plan = Object.values(PLANS).find((p) => p.stripePriceId === subscription.items.data[0].price.id)
     const email = session.customer_details?.email || session.customer_email || ""
-    const user = await getOrCreateCloudUser(email, {
-      email: email,
-      name: session.customer_details?.name || session.customer_details?.email || session.customer_email || "",
-      stripeCustomerId: session.customer as string,
-      membershipPlan: plan?.code,
-      membershipExpiresAt: new Date(subscription.items.data[0].current_period_end * 1000),
-      storageLimit: plan?.limits.storage,
-      aiBalance: plan?.limits.ai,
-    })
+    const user = await getOrCreateCloudUser(
+      email,
+      {
+        email: email,
+        name: session.customer_details?.name || session.customer_details?.email || session.customer_email || "",
+      },
+      {
+        stripeCustomerId: session.customer as string,
+        plan: plan?.code,
+        membershipExpiresAt: new Date(subscription.items.data[0].current_period_end * 1000),
+        storageLimit: plan?.limits.storage,
+        aiCredits: plan?.limits.ai,
+      }
+    )
 
     return (
       <Card className="w-full max-w-xl mx-auto p-8 flex flex-col items-center justify-center gap-4">

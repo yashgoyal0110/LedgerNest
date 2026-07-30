@@ -9,7 +9,7 @@ import Link from "next/link"
 
 export async function WelcomeWidget() {
   const user = await getCurrentUser()
-  const settings = await getSettings(user.id)
+  const settings = await getSettings(user)
   const geminiReady = Boolean(settings.google_api_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)
 
   return (
@@ -22,7 +22,7 @@ export async function WelcomeWidget() {
             <span>Welcome to LedgerNest</span>
             <Button variant="ghost" size="icon" onClick={async () => {
               "use server"
-              await updateSettings(user.id, "is_welcome_message_hidden", "true")
+              await updateSettings(user, "is_welcome_message_hidden", "true")
               revalidatePath("/")
             }}><X className="h-4 w-4" /></Button>
           </CardTitle>

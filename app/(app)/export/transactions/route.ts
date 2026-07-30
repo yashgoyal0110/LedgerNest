@@ -30,8 +30,8 @@ export async function GET(request: Request) {
   const progressId = url.searchParams.get("progressId")
 
   const user = await getCurrentUser()
-  const { transactions } = await getTransactions(user.id, filters)
-  const existingFields = await getFields(user.id)
+  const { transactions } = await getTransactions(user, filters)
+  const existingFields = await getFields(user)
 
   try {
     const fieldKeys = fields.filter((field) => existingFields.some((f) => f.code === field))
@@ -53,14 +53,14 @@ export async function GET(request: Request) {
 
       for (const transaction of chunk) {
         const row: Record<string, unknown> = {}
-        const transactionFiles = includeFilePaths ? await getFilesByTransactionId(transaction.id, user.id) : []
+        const transactionFiles = includeFilePaths ? await getFilesByTransactionId(transaction.id, user) : []
 
         for (const field of existingFields) {
           if (field.code === "files") {
             if (includeFilePaths) {
               const paths: string[] = []
               for (const file of transactionFiles) {
-                const fullFilePath = fullPathForFile(user, file)
+                const fullFilePath = fullPathForFile(user.tenant, file)
                 if (await fileExists(fullFilePath)) {
                   paths.push(getTransactionExportFilePath(transaction, file, transactionFiles.length))
                 }
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
 
           const exportFieldSettings = EXPORT_AND_IMPORT_FIELD_MAP[field.code]
           if (exportFieldSettings && exportFieldSettings.export) {
-            row[field.code] = await exportFieldSettings.export(user.id, value)
+            row[field.code] = await exportFieldSettings.export(user, value)
           } else {
             row[field.code] = value
           }
@@ -126,13 +126,13 @@ export async function GET(request: Request) {
 
     // First count total files to process
     for (const transaction of transactions) {
-      const transactionFiles = await getFilesByTransactionId(transaction.id, user.id)
+      const transactionFiles = await getFilesByTransactionId(transaction.id, user)
       totalFilesToProcess += transactionFiles.length
     }
 
     // Update progress with total files if progressId is provided
     if (progressId) {
-      await updateProgress(user.id, progressId, { total: totalFilesToProcess })
+      await updateProgress(user, progressId, { total: totalFilesToProcess })
     }
 
     console.log(`Starting to process ${totalFilesToProcess} files in total`)
@@ -144,14 +144,14 @@ export async function GET(request: Request) {
       )
 
       for (const transaction of chunk) {
-        const transactionFiles = await getFilesByTransactionId(transaction.id, user.id)
+        const transactionFiles = await getFilesByTransactionId(transaction.id, user)
 
         const transactionFolder = filesFolder.folder(getTransactionExportRelativeFolder(transaction, transactionFiles.length))
 
         if (!transactionFolder) continue
 
         for (const file of transactionFiles) {
-          const fullFilePath = fullPathForFile(user, file)
+          const fullFilePath = fullPathForFile(user.tenant, file)
           if (await fileExists(fullFilePath)) {
             console.log(
               `Processing file ${++totalFilesProcessed}/${totalFilesToProcess}: ${file.filename} for transaction ${transaction.id}`
@@ -162,7 +162,7 @@ export async function GET(request: Request) {
             // Update progress every PROGRESS_UPDATE_INTERVAL_MS milliseconds
             const now = Date.now()
             if (progressId && now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL_MS) {
-              await updateProgress(user.id, progressId, { current: totalFilesProcessed })
+              await updateProgress(user, progressId, { current: totalFilesProcessed })
               lastProgressUpdate = now
             }
           } else {
@@ -174,7 +174,7 @@ export async function GET(request: Request) {
 
     // Final progress update
     if (progressId) {
-      await updateProgress(user.id, progressId, { current: totalFilesToProcess })
+      await updateProgress(user, progressId, { current: totalFilesToProcess })
     }
 
     console.log(`Finished processing all ${totalFilesProcessed} files`)

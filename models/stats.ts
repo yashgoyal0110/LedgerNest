@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db"
 import { calcTotalPerCurrency } from "@/lib/stats"
 import { Prisma } from "@/prisma/client"
 import { cache } from "react"
+import { TenantScope } from "@/lib/tenant"
 import { TransactionFilters } from "./transactions"
 
 export type DashboardStats = {
@@ -12,7 +13,7 @@ export type DashboardStats = {
 }
 
 export const getDashboardStats = cache(
-  async (userId: string, filters: TransactionFilters = {}): Promise<DashboardStats> => {
+  async (scope: TenantScope, filters: TransactionFilters = {}): Promise<DashboardStats> => {
     const where: Prisma.TransactionWhereInput = {}
 
     if (filters.dateFrom || filters.dateTo) {
@@ -22,7 +23,7 @@ export const getDashboardStats = cache(
       }
     }
 
-    const transactions = await prisma.transaction.findMany({ where: { ...where, userId } })
+    const transactions = await prisma.transaction.findMany({ where: { ...where, tenantId: scope.tenantId } })
     const totalIncomePerCurrency = calcTotalPerCurrency(transactions.filter((t) => t.type === "income"))
     const totalExpensesPerCurrency = calcTotalPerCurrency(transactions.filter((t) => t.type === "expense"))
     const profitPerCurrency = Object.fromEntries(
@@ -49,7 +50,7 @@ export type ProjectStats = {
   invoicesProcessed: number
 }
 
-export const getProjectStats = cache(async (userId: string, projectId: string, filters: TransactionFilters = {}) => {
+export const getProjectStats = cache(async (scope: TenantScope, projectId: string, filters: TransactionFilters = {}) => {
   const where: Prisma.TransactionWhereInput = {
     projectCode: projectId,
   }
@@ -61,7 +62,7 @@ export const getProjectStats = cache(async (userId: string, projectId: string, f
     }
   }
 
-  const transactions = await prisma.transaction.findMany({ where: { ...where, userId } })
+  const transactions = await prisma.transaction.findMany({ where: { ...where, tenantId: scope.tenantId } })
   const totalIncomePerCurrency = calcTotalPerCurrency(transactions.filter((t) => t.type === "income"))
   const totalExpensesPerCurrency = calcTotalPerCurrency(transactions.filter((t) => t.type === "expense"))
   const profitPerCurrency = Object.fromEntries(
@@ -107,11 +108,11 @@ export type DetailedTimeSeriesData = {
 
 export const getTimeSeriesStats = cache(
   async (
-    userId: string,
+    scope: TenantScope,
     filters: TransactionFilters = {},
     defaultCurrency: string = "EUR"
   ): Promise<TimeSeriesData[]> => {
-    const where: Prisma.TransactionWhereInput = { userId }
+    const where: Prisma.TransactionWhereInput = { tenantId: scope.tenantId }
 
     if (filters.dateFrom || filters.dateTo) {
       where.issuedAt = {
@@ -186,11 +187,11 @@ export const getTimeSeriesStats = cache(
 
 export const getDetailedTimeSeriesStats = cache(
   async (
-    userId: string,
+    scope: TenantScope,
     filters: TransactionFilters = {},
     defaultCurrency: string = "EUR"
   ): Promise<DetailedTimeSeriesData[]> => {
-    const where: Prisma.TransactionWhereInput = { userId }
+    const where: Prisma.TransactionWhereInput = { tenantId: scope.tenantId }
 
     if (filters.dateFrom || filters.dateTo) {
       where.issuedAt = {
@@ -220,7 +221,7 @@ export const getDetailedTimeSeriesStats = cache(
         orderBy: { issuedAt: "asc" },
       }),
       prisma.category.findMany({
-        where: { userId },
+        where: { tenantId: scope.tenantId },
         orderBy: { name: "asc" },
       }),
     ])

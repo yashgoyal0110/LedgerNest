@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 import { codeFromName } from "@/lib/utils"
 import { formatDate } from "date-fns"
 import { createCategory, getCategoryByCode } from "./categories"
@@ -12,8 +13,8 @@ export type ExportFields = string[]
 export type ExportImportFieldSettings = {
   code: string
   type: string
-  export?: (userId: string, value: any) => Promise<any>
-  import?: (userId: string, value: any) => Promise<any>
+  export?: (scope: TenantScope, value: any) => Promise<any>
+  import?: (scope: TenantScope, value: any) => Promise<any>
 }
 
 export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettings> = {
@@ -32,10 +33,10 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
   total: {
     code: "total",
     type: "number",
-    export: async function (userId: string, value: number) {
+    export: async function (scope: TenantScope, value: number) {
       return value / 100
     },
-    import: async function (userId: string, value: string) {
+    import: async function (scope: TenantScope, value: string) {
       const num = parseFloat(value)
       return isNaN(num) ? 0.0 : num * 100
     },
@@ -47,13 +48,13 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
   convertedTotal: {
     code: "convertedTotal",
     type: "number",
-    export: async function (userId: string, value: number | null) {
+    export: async function (scope: TenantScope, value: number | null) {
       if (!value) {
         return null
       }
       return value / 100
     },
-    import: async function (userId: string, value: string) {
+    import: async function (scope: TenantScope, value: string) {
       const num = parseFloat(value)
       return isNaN(num) ? 0.0 : num * 100
     },
@@ -65,10 +66,10 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
   type: {
     code: "type",
     type: "string",
-    export: async function (userId: string, value: string | null) {
+    export: async function (scope: TenantScope, value: string | null) {
       return value ? value.toLowerCase() : ""
     },
-    import: async function (userId: string, value: string) {
+    import: async function (scope: TenantScope, value: string) {
       return value.toLowerCase()
     },
   },
@@ -79,37 +80,37 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
   categoryCode: {
     code: "categoryCode",
     type: "string",
-    export: async function (userId: string, value: string | null) {
+    export: async function (scope: TenantScope, value: string | null) {
       if (!value) {
         return null
       }
-      const category = await getCategoryByCode(userId, value)
+      const category = await getCategoryByCode(scope, value)
       return category?.name
     },
-    import: async function (userId: string, value: string) {
-      const category = await importCategory(userId, value)
+    import: async function (scope: TenantScope, value: string) {
+      const category = await importCategory(scope, value)
       return category?.code
     },
   },
   projectCode: {
     code: "projectCode",
     type: "string",
-    export: async function (userId: string, value: string | null) {
+    export: async function (scope: TenantScope, value: string | null) {
       if (!value) {
         return null
       }
-      const project = await getProjectByCode(userId, value)
+      const project = await getProjectByCode(scope, value)
       return project?.name
     },
-    import: async function (userId: string, value: string) {
-      const project = await importProject(userId, value)
+    import: async function (scope: TenantScope, value: string) {
+      const project = await importProject(scope, value)
       return project?.code
     },
   },
   issuedAt: {
     code: "issuedAt",
     type: "date",
-    export: async function (userId: string, value: Date | null) {
+    export: async function (scope: TenantScope, value: Date | null) {
       if (!value || isNaN(value.getTime())) {
         return null
       }
@@ -120,7 +121,7 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
         return null
       }
     },
-    import: async function (userId: string, value: string) {
+    import: async function (scope: TenantScope, value: string) {
       try {
         return new Date(value)
       } catch (_error) {
@@ -130,11 +131,12 @@ export const EXPORT_AND_IMPORT_FIELD_MAP: Record<string, ExportImportFieldSettin
   },
 }
 
-export const importProject = async (userId: string, name: string) => {
+export const importProject = async (scope: TenantScope, name: string) => {
   const code = codeFromName(name)
 
   const existingProject = await prisma.project.findFirst({
     where: {
+      tenantId: scope.tenantId,
       OR: [{ code }, { name }],
     },
   })
@@ -143,14 +145,15 @@ export const importProject = async (userId: string, name: string) => {
     return existingProject
   }
 
-  return await createProject(userId, { code, name })
+  return await createProject(scope, { code, name })
 }
 
-export const importCategory = async (userId: string, name: string) => {
+export const importCategory = async (scope: TenantScope, name: string) => {
   const code = codeFromName(name)
 
   const existingCategory = await prisma.category.findFirst({
     where: {
+      tenantId: scope.tenantId,
       OR: [{ code }, { name }],
     },
   })
@@ -159,5 +162,5 @@ export const importCategory = async (userId: string, name: string) => {
     return existingCategory
   }
 
-  return await createCategory(userId, { code, name })
+  return await createCategory(scope, { code, name })
 }

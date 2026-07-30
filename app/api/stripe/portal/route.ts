@@ -13,12 +13,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (!user.stripeCustomerId) {
-      return NextResponse.json({ error: "No Stripe customer ID found for this user" }, { status: 400 })
+    if (!user.tenant.stripeCustomerId) {
+      return NextResponse.json({ error: "No Stripe customer ID found for this workspace" }, { status: 400 })
     }
 
     const portalSession = await stripeClient.billingPortal.sessions.create({
-      customer: user.stripeCustomerId,
+      customer: user.tenant.stripeCustomerId,
       return_url: `${request.nextUrl.origin}/settings/profile`,
     })
 

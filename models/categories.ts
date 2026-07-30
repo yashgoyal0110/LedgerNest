@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 import { codeFromName } from "@/lib/utils"
 import { Prisma } from "@/prisma/client"
 import { cache } from "react"
@@ -7,48 +8,45 @@ export type CategoryData = {
   [key: string]: unknown
 }
 
-export const getCategories = cache(async (userId: string) => {
+export const getCategories = cache(async ({ tenantId }: TenantScope) => {
   return await prisma.category.findMany({
-    where: { userId },
+    where: { tenantId },
     orderBy: {
       name: "asc",
     },
   })
 })
 
-export const getCategoryByCode = cache(async (userId: string, code: string) => {
+export const getCategoryByCode = cache(async ({ tenantId }: TenantScope, code: string) => {
   return await prisma.category.findUnique({
-    where: { userId_code: { userId, code } },
+    where: { tenantId_code: { tenantId, code } },
   })
 })
 
-export const createCategory = async (userId: string, category: CategoryData) => {
+export const createCategory = async ({ tenantId, userId }: TenantScope, category: CategoryData) => {
   if (!category.code) {
     category.code = codeFromName(category.name as string)
   }
   return await prisma.category.create({
     data: {
       ...category,
-      user: {
-        connect: {
-          id: userId,
-        },
-      },
-    } as Prisma.CategoryCreateInput,
+      tenantId,
+      userId,
+    } as unknown as Prisma.CategoryUncheckedCreateInput,
   })
 }
 
-export const updateCategory = async (userId: string, code: string, category: CategoryData) => {
+export const updateCategory = async ({ tenantId }: TenantScope, code: string, category: CategoryData) => {
   return await prisma.category.update({
-    where: { userId_code: { userId, code } },
+    where: { tenantId_code: { tenantId, code } },
     data: category,
   })
 }
 
-export const deleteCategory = async (userId: string, code: string) => {
+export const deleteCategory = async ({ tenantId }: TenantScope, code: string) => {
   await prisma.transaction.updateMany({
     where: {
-      userId,
+      tenantId,
       categoryCode: code,
     },
     data: {
@@ -57,6 +55,6 @@ export const deleteCategory = async (userId: string, code: string) => {
   })
 
   return await prisma.category.delete({
-    where: { userId_code: { userId, code } },
+    where: { tenantId_code: { tenantId, code } },
   })
 }

@@ -1,10 +1,11 @@
 import { SubscriptionExpired } from "@/components/auth/subscription-expired"
+import { DemoBanner } from "@/components/workspace/demo-banner"
 import ScreenDropArea from "@/components/files/screen-drop-area"
 import MobileMenu from "@/components/sidebar/mobile-menu"
 import { AppSidebar } from "@/components/sidebar/sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
-import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
+import { getCurrentUser, isSubscriptionExpired, toUserProfile } from "@/lib/auth"
 import config from "@/lib/config"
 import { getApps } from "@/app/(app)/apps/common"
 import { getUnsortedFilesCount } from "@/models/files"
@@ -30,18 +31,9 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
-  const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user.id), getApps()])
+  const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user), getApps()])
 
-  const userProfile = {
-    id: user.id,
-    name: user.name || "",
-    email: user.email,
-    avatar: user.avatar ? user.avatar + "?" + user.id : undefined,
-    membershipPlan: user.membershipPlan || "unlimited",
-    storageUsed: user.storageUsed || 0,
-    storageLimit: user.storageLimit || -1,
-    aiBalance: user.aiBalance || 0,
-  }
+  const userProfile = toUserProfile(user)
 
   return (
     <NotificationProvider>
@@ -59,6 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             }))}
           />
           <SidebarInset className="w-full h-full mt-[60px] md:mt-0 overflow-auto">
+            {user.tenant.isDemo && <DemoBanner ai={userProfile.ai} />}
             {isSubscriptionExpired(user) && <SubscriptionExpired />}
             {children}
           </SidebarInset>

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth"
-import { fileExists, getUserUploadsDirectory } from "@/lib/files"
+import { fileExists, getTenantUploadsDirectory } from "@/lib/files"
 import { MODEL_BACKUP, modelToJSON } from "@/models/backups"
 import { updateProgress } from "@/models/progress"
 import fs from "fs/promises"
@@ -13,7 +13,7 @@ const PROGRESS_UPDATE_INTERVAL_MS = 2000 // 2 seconds
 
 export async function GET(request: Request) {
   const user = await getCurrentUser()
-  const userUploadsDirectory = getUserUploadsDirectory(user)
+  const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
   const url = new URL(request.url)
   const progressId = url.searchParams.get("progressId")
 
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     // Backup models
     for (const backup of MODEL_BACKUP) {
       try {
-        const jsonContent = await modelToJSON(user.id, backup)
+        const jsonContent = await modelToJSON(user, backup)
         rootFolder.file(backup.filename, jsonContent)
       } catch (error) {
         console.error(`Error exporting table ${backup.filename}:`, error)
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
 
     // Update progress with total files if progressId is provided
     if (progressId) {
-      await updateProgress(user.id, progressId, { total: uploadedFiles.length })
+      await updateProgress(user, progressId, { total: uploadedFiles.length })
     }
 
     let processedFiles = 0
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
         // Update progress every PROGRESS_UPDATE_INTERVAL_MS milliseconds
         const now = Date.now()
         if (progressId && now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL_MS) {
-          await updateProgress(user.id, progressId, { current: processedFiles })
+          await updateProgress(user, progressId, { current: processedFiles })
           lastProgressUpdate = now
         }
       } catch (error) {
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
 
     // Final progress update
     if (progressId) {
-      await updateProgress(user.id, progressId, { current: uploadedFiles.length })
+      await updateProgress(user, progressId, { current: uploadedFiles.length })
     }
 
     const archive = await zip.generateAsync({ type: "blob" })

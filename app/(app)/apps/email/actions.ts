@@ -154,7 +154,7 @@ export async function testEmailConnectionAction(serverId: string): Promise<{ suc
 export async function syncEmailNowAction(serverId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const user = await getCurrentUser()
-    const results = await runEmailSync({ userId: user.id, serverId })
+    const results = await runEmailSync({ tenantId: user.tenantId, serverId })
     revalidatePath("/apps/email")
     const failed = results.find((r) => r.status === "error")
     if (failed) return { success: false, error: failed.errorMessage || "Sync failed" }

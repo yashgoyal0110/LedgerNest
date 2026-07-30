@@ -13,15 +13,15 @@ import Link from "next/link"
 
 export async function StatsWidget({ filters }: { filters: TransactionFilters }) {
   const user = await getCurrentUser()
-  const projects = await getProjects(user.id)
-  const settings = await getSettings(user.id)
+  const projects = await getProjects(user)
+  const settings = await getSettings(user)
   const defaultCurrency = settings.default_currency || "EUR"
 
-  const stats = await getDashboardStats(user.id, filters)
-  const statsTimeSeries = await getDetailedTimeSeriesStats(user.id, filters, defaultCurrency)
+  const stats = await getDashboardStats(user, filters)
+  const statsTimeSeries = await getDetailedTimeSeriesStats(user, filters, defaultCurrency)
   const statsPerProject = Object.fromEntries(
     await Promise.all(
-      projects.map((project) => getProjectStats(user.id, project.code, filters).then((stats) => [project.code, stats]))
+      projects.map((project) => getProjectStats(user, project.code, filters).then((stats) => [project.code, stats]))
     )
   )
 

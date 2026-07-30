@@ -7,7 +7,7 @@ import { Prisma } from "@/prisma/client"
 
 export default async function FieldsSettingsPage() {
   const user = await getCurrentUser()
-  const fields = await getFields(user.id)
+  const fields = await getFields(user)
   const fieldsWithActions = fields.map((field) => ({
     ...field,
     isEditable: true,
@@ -57,15 +57,15 @@ export default async function FieldsSettingsPage() {
         ]}
         onDelete={async (code) => {
           "use server"
-          return await deleteFieldAction(user.id, code)
+          return await deleteFieldAction(code)
         }}
         onAdd={async (data) => {
           "use server"
-          return await addFieldAction(user.id, data as Prisma.FieldCreateInput)
+          return await addFieldAction(data as Prisma.FieldCreateInput)
         }}
         onEdit={async (code, data) => {
           "use server"
-          return await editFieldAction(user.id, code, data as Prisma.FieldUpdateInput)
+          return await editFieldAction(code, data as Prisma.FieldUpdateInput)
         }}
       />
     </div>

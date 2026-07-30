@@ -9,7 +9,7 @@ vi.mock("@/lib/db", () => {
     prisma: { appData: { findMany: vi.fn() }, $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(tx)) },
   }
 })
-vi.mock("@/lib/files", () => ({ getDirectorySize: vi.fn(), getUserUploadsDirectory: vi.fn(() => "dir") }))
+vi.mock("@/lib/files", () => ({ getDirectorySize: vi.fn(), getTenantUploadsDirectory: vi.fn(() => "dir") }))
 vi.mock("@/models/users", () => ({ updateUser: vi.fn() }))
 vi.mock("@/lib/email-sync/imap-client", () => ({ realImapClient: { fetchMessages: vi.fn() } }))
 

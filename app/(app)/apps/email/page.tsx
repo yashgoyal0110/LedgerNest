@@ -37,7 +37,7 @@ export type EmailAppData = {
 
 export default async function EmailApp() {
   const user = await getCurrentUser()
-  const settings = await getSettings(user.id)
+  const settings = await getSettings(user)
   const appData = (await getAppData(user, "email")) as EmailAppData | null
 
   const sanitizedAppData = appData

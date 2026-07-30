@@ -9,7 +9,7 @@ import { addCurrencyAction, deleteCurrencyAction, editCurrencyAction } from "@/a
 
 export default async function CurrenciesSettingsPage() {
   const user = await getCurrentUser()
-  const [currencies, settings] = await Promise.all([getCurrencies(user.id), getSettings(user.id)])
+  const [currencies, settings] = await Promise.all([getCurrencies(user), getSettings(user)])
   const currenciesWithActions = currencies.map((currency) => ({
     ...currency,
     isEditable: true,
@@ -32,15 +32,15 @@ export default async function CurrenciesSettingsPage() {
         ]}
         onDelete={async (code) => {
           "use server"
-          return await deleteCurrencyAction(user.id, code)
+          return await deleteCurrencyAction(code)
         }}
         onAdd={async (data) => {
           "use server"
-          return await addCurrencyAction(user.id, data as { code: string; name: string })
+          return await addCurrencyAction(data as { code: string; name: string })
         }}
         onEdit={async (code, data) => {
           "use server"
-          return await editCurrencyAction(user.id, code, data as { name: string })
+          return await editCurrencyAction(code, data as { name: string })
         }}
       />
     </div>

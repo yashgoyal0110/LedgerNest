@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { TenantScope } from "@/lib/tenant"
 import { Field, Prisma, Transaction } from "@/prisma/client"
 import { cache } from "react"
 import { getFields } from "./fields"
@@ -42,14 +43,14 @@ export type TransactionPagination = {
 
 export const getTransactions = cache(
   async (
-    userId: string,
+    scope: TenantScope,
     filters?: TransactionFilters,
     pagination?: TransactionPagination
   ): Promise<{
     transactions: Transaction[]
     total: number
   }> => {
-    const where: Prisma.TransactionWhereInput = { userId }
+    const where: Prisma.TransactionWhereInput = { tenantId: scope.tenantId }
     let orderBy: Prisma.TransactionOrderByWithRelationInput = { issuedAt: "desc" }
 
     if (filters) {
@@ -116,9 +117,9 @@ export const getTransactions = cache(
   }
 )
 
-export const getTransactionById = cache(async (id: string, userId: string): Promise<Transaction | null> => {
-  return await prisma.transaction.findUnique({
-    where: { id, userId },
+export const getTransactionById = cache(async (id: string, scope: TenantScope): Promise<Transaction | null> => {
+  return await prisma.transaction.findFirst({
+    where: { id, tenantId: scope.tenantId },
     include: {
       category: true,
       project: true,
@@ -126,21 +127,21 @@ export const getTransactionById = cache(async (id: string, userId: string): Prom
   })
 })
 
-export const getTransactionsByFileId = cache(async (fileId: string, userId: string): Promise<Transaction[]> => {
+export const getTransactionsByFileId = cache(async (fileId: string, scope: TenantScope): Promise<Transaction[]> => {
   return await prisma.transaction.findMany({
-    where: { files: { array_contains: [fileId] }, userId },
+    where: { files: { array_contains: [fileId] }, tenantId: scope.tenantId },
   })
 })
 
 // --- 1. New Dedicated Deduplication Function ---
-export const findDuplicateTransaction = async (userId: string, data: TransactionData) => {
-  const { standard } = await splitTransactionDataExtraFields(data, userId)
+export const findDuplicateTransaction = async (scope: TenantScope, data: TransactionData) => {
+  const { standard } = await splitTransactionDataExtraFields(data, scope)
   const currencyCode = standard.currencyCode || "USD"
 
   if (standard.total && standard.merchant && standard.issuedAt) {
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        userId: userId,
+        tenantId: scope.tenantId,
         total: standard.total,
         merchant: standard.merchant,
         issuedAt: standard.issuedAt,
@@ -154,70 +155,87 @@ export const findDuplicateTransaction = async (userId: string, data: Transaction
   return null
 }
 
-export const createTransaction = async (userId: string, data: TransactionData): Promise<Transaction> => {
-  const { standard, extra } = await splitTransactionDataExtraFields(data, userId)
+export const createTransaction = async (scope: TenantScope, data: TransactionData): Promise<Transaction> => {
+  const { standard, extra } = await splitTransactionDataExtraFields(data, scope)
 
   const newTransaction = await prisma.transaction.create({
     data: {
       ...standard,
       extra: extra,
       items: data.items as Prisma.InputJsonValue,
-      userId,
+      tenantId: scope.tenantId,
+      userId: scope.userId,
     },
   })
 
   return newTransaction
 }
 
-export const updateTransaction = async (id: string, userId: string, data: TransactionData): Promise<Transaction> => {
-  const { standard, extra } = await splitTransactionDataExtraFields(data, userId)
+export const updateTransaction = async (
+  id: string,
+  scope: TenantScope,
+  data: TransactionData
+): Promise<Transaction> => {
+  const { standard, extra } = await splitTransactionDataExtraFields(data, scope)
 
-  return await prisma.transaction.update({
-    where: { id, userId },
+  const updated = await prisma.transaction.updateMany({
+    where: { id, tenantId: scope.tenantId },
     data: {
       ...standard,
       extra: extra,
       items: data.items ? (data.items as Prisma.InputJsonValue) : [],
     },
   })
+
+  if (updated.count === 0) {
+    throw new Error("Transaction not found in this workspace")
+  }
+
+  return (await prisma.transaction.findUniqueOrThrow({ where: { id } })) as Transaction
 }
 
-export const updateTransactionFiles = async (id: string, userId: string, files: string[]): Promise<Transaction> => {
-  return await prisma.transaction.update({
-    where: { id, userId },
+export const updateTransactionFiles = async (
+  id: string,
+  scope: TenantScope,
+  files: string[]
+): Promise<Transaction> => {
+  await prisma.transaction.updateMany({
+    where: { id, tenantId: scope.tenantId },
     data: { files },
   })
+
+  return await prisma.transaction.findUniqueOrThrow({ where: { id } })
 }
 
-export const deleteTransaction = async (id: string, userId: string): Promise<Transaction | undefined> => {
-  const transaction = await getTransactionById(id, userId)
+export const deleteTransaction = async (id: string, scope: TenantScope): Promise<Transaction | undefined> => {
+  const transaction = await getTransactionById(id, scope)
 
   if (transaction) {
     const files = Array.isArray(transaction.files) ? transaction.files : []
 
     for (const fileId of files as string[]) {
-      if ((await getTransactionsByFileId(fileId, userId)).length <= 1) {
-        await deleteFile(fileId, userId)
+      if ((await getTransactionsByFileId(fileId, scope)).length <= 1) {
+        await deleteFile(fileId, scope)
       }
     }
 
     return await prisma.transaction.delete({
-      where: { id, userId },
+      where: { id },
     })
   }
 }
 
-export const bulkDeleteTransactions = async (ids: string[], userId: string) => {
+export const bulkDeleteTransactions = async (ids: string[], scope: TenantScope) => {
   return await prisma.transaction.deleteMany({
-    where: { id: { in: ids }, userId },
+    where: { id: { in: ids }, tenantId: scope.tenantId },
   })
 }
 
 const splitTransactionDataExtraFields = async (
   data: TransactionData,
-  userId: string
+  scope: TenantScope
 ): Promise<{ standard: TransactionData; extra: Prisma.InputJsonValue }> => {
-  const fields = await getFields(userId)
+  const fields = await getFields(scope)
   const fieldMap = fields.reduce(
     (acc, field) => {
       acc[field.code] = field

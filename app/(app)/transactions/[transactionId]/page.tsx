@@ -17,17 +17,17 @@ import { notFound } from "next/navigation"
 export default async function TransactionPage({ params }: { params: Promise<{ transactionId: string }> }) {
   const { transactionId } = await params
   const user = await getCurrentUser()
-  const transaction = await getTransactionById(transactionId, user.id)
+  const transaction = await getTransactionById(transactionId, user)
   if (!transaction) {
     notFound()
   }
 
-  const files = await getFilesByTransactionId(transactionId, user.id)
-  const categories = await getCategories(user.id)
-  const currencies = await getCurrencies(user.id)
-  const settings = await getSettings(user.id)
-  const fields = await getFields(user.id)
-  const projects = await getProjects(user.id)
+  const files = await getFilesByTransactionId(transactionId, user)
+  const categories = await getCategories(user)
+  const currencies = await getCurrencies(user)
+  const settings = await getSettings(user)
+  const fields = await getFields(user)
+  const projects = await getProjects(user)
   const incompleteFields = incompleteTransactionFields(fields, transaction)
 
   return (

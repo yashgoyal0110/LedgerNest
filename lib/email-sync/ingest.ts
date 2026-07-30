@@ -2,9 +2,9 @@ import { Prisma } from "@/prisma/client"
 import { prisma } from "@/lib/db"
 import { decryptSecret } from "@/lib/encryption"
 import { ingestUnsortedFile } from "@/lib/uploads"
-import { getDirectorySize, getUserUploadsDirectory } from "@/lib/files"
-import { updateUser } from "@/models/users"
-import { File, User } from "@/prisma/client"
+import { TenantScope, tenantScope } from "@/lib/tenant"
+import { recalculateTenantStorage } from "@/models/tenants"
+import { File, Tenant, User } from "@/prisma/client"
 import { attachmentMatchesExtensions, buildSearchCriteria } from "./filters"
 import { realImapClient } from "./imap-client"
 import { EmailServer, ImapClient, SyncResult } from "./types"
@@ -12,12 +12,13 @@ import { EmailServer, ImapClient, SyncResult } from "./types"
 type SyncDeps = {
   client?: ImapClient
   ingest?: (
-    user: User,
+    tenant: Tenant,
+    scope: TenantScope,
     input: { buffer: Buffer; filename: string; mimetype: string; metadata?: Record<string, unknown> }
   ) => Promise<File>
 }
 
-export async function syncServer(server: EmailServer, user: User, deps: SyncDeps = {}): Promise<SyncResult> {
+export async function syncServer(server: EmailServer, user: User & { tenant: Tenant }, deps: SyncDeps = {}): Promise<SyncResult> {
   const client = deps.client ?? realImapClient
   const ingest = deps.ingest ?? ingestUnsortedFile
 
@@ -57,7 +58,7 @@ export async function syncServer(server: EmailServer, user: User, deps: SyncDeps
       if (message.uid <= watermark) continue
       for (const attachment of message.attachments) {
         if (!attachmentMatchesExtensions(attachment.filename, server.allowedExtensions)) continue
-        await ingest(user, {
+        await ingest(user.tenant, tenantScope(user), {
           buffer: attachment.content,
           filename: attachment.filename,
           mimetype: attachment.contentType,
@@ -87,13 +88,14 @@ export async function syncServer(server: EmailServer, user: User, deps: SyncDeps
   }
 }
 
-async function applyResult(userId: string, result: SyncResult) {
+async function applyResult(scope: TenantScope, result: SyncResult) {
+  const tenantId = scope.tenantId
   // Lock the row and re-read the CURRENT data inside the transaction so a concurrent sync
   // (the hourly cron container vs. a manual "Sync Now" in the web app) can't clobber the
   // other's watermark/status with a stale read-modify-write.
   await prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ data: Record<string, unknown> }[]>`
-      SELECT data FROM app_data WHERE user_id = ${userId}::uuid AND app = 'email' FOR UPDATE
+      SELECT data FROM app_data WHERE tenant_id = ${tenantId}::uuid AND app = 'email' FOR UPDATE
     `
     if (!locked.length) return
     const data = locked[0].data as Record<string, unknown>
@@ -109,7 +111,7 @@ async function applyResult(userId: string, result: SyncResult) {
           }
         : s
     )
-    await tx.appData.update({ where: { userId_app: { userId, app: "email" } }, data: { data: data as Prisma.InputJsonValue } })
+    await tx.appData.update({ where: { tenantId_app: { tenantId, app: "email" } }, data: { data: data as Prisma.InputJsonValue } })
   })
 }
 
@@ -123,25 +125,25 @@ function isThrottled(server: EmailServer): boolean {
 }
 
 export async function runEmailSync(
-  scope: { userId?: string; serverId?: string; respectInterval?: boolean } = {}
+  filter: { tenantId?: string; serverId?: string; respectInterval?: boolean } = {}
 ): Promise<SyncResult[]> {
   const rows = await prisma.appData.findMany({
-    where: { app: "email", ...(scope.userId ? { userId: scope.userId } : {}) },
-    include: { user: true },
+    where: { app: "email", ...(filter.tenantId ? { tenantId: filter.tenantId } : {}) },
+    include: { user: { include: { tenant: true } }, tenant: true },
   })
 
   const results: SyncResult[] = []
   for (const row of rows) {
     const data = row.data as Record<string, unknown>
     const servers: EmailServer[] = ((data?.servers as EmailServer[]) || []).filter(
-      (s) => s.isActive && (!scope.serverId || s.id === scope.serverId)
+      (s) => s.isActive && (!filter.serverId || s.id === filter.serverId)
     )
     for (const server of servers) {
-      if (scope.respectInterval && isThrottled(server)) continue
+      if (filter.respectInterval && isThrottled(server)) continue
       const result = await syncServer(server, row.user)
-      await applyResult(row.userId, result)
+      await applyResult(tenantScope(row.user), result)
       if (result.processed > 0) {
-        await updateUser(row.userId, { storageUsed: await getDirectorySize(getUserUploadsDirectory(row.user)) })
+        await recalculateTenantStorage(row.tenant)
       }
       results.push(result)
     }

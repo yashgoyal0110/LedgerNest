@@ -3,16 +3,22 @@ import Link from "next/link"
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col relative">
+    <div className="relative flex min-h-screen flex-col bg-gray-950">
+      {/* Subtle brand wash so the marketing panel does not sit on flat black */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(59,130,246,0.18),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(168,85,247,0.14),transparent_40%)]"
+      />
       <Link
         href="/"
-        className="absolute top-4 right-4 flex items-center justify-center w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors"
+        aria-label="Close"
+        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-gray-200 transition-colors hover:bg-white/20"
       >
-        <span className="text-gray-300 font-bold text-xl">
-          <X />
-        </span>
+        <X className="h-5 w-5" />
       </Link>
-      <div className="flex-grow flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">{children}</div>
+      <div className="relative flex flex-grow flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        {children}
+      </div>
     </div>
   )
 }

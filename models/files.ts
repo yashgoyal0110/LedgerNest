@@ -1,17 +1,18 @@
 "use server"
 
 import { prisma } from "@/lib/db"
+import { getTenantUploadsDirectory, safePathJoin } from "@/lib/files"
+import { TenantScope } from "@/lib/tenant"
 import { unlink } from "fs/promises"
-import { safePathJoin, FILE_UPLOAD_PATH } from "@/lib/files"
 import path from "path"
 import { cache } from "react"
 import { getTransactionById } from "./transactions"
 
-export const getUnsortedFiles = cache(async (userId: string) => {
+export const getUnsortedFiles = cache(async ({ tenantId }: TenantScope) => {
   return await prisma.file.findMany({
     where: {
       isReviewed: false,
-      userId,
+      tenantId,
     },
     orderBy: {
       createdAt: "desc",
@@ -19,30 +20,30 @@ export const getUnsortedFiles = cache(async (userId: string) => {
   })
 })
 
-export const getUnsortedFilesCount = cache(async (userId: string) => {
+export const getUnsortedFilesCount = cache(async ({ tenantId }: TenantScope) => {
   return await prisma.file.count({
     where: {
       isReviewed: false,
-      userId,
+      tenantId,
     },
   })
 })
 
-export const getFileById = cache(async (id: string, userId: string) => {
+export const getFileById = cache(async (id: string, { tenantId }: TenantScope) => {
   return await prisma.file.findFirst({
-    where: { id, userId },
+    where: { id, tenantId },
   })
 })
 
-export const getFilesByTransactionId = cache(async (id: string, userId: string) => {
-  const transaction = await getTransactionById(id, userId)
+export const getFilesByTransactionId = cache(async (id: string, scope: TenantScope) => {
+  const transaction = await getTransactionById(id, scope)
   if (transaction && transaction.files) {
     return await prisma.file.findMany({
       where: {
         id: {
           in: transaction.files as string[],
         },
-        userId,
+        tenantId: scope.tenantId,
       },
       orderBy: {
         createdAt: "asc",
@@ -52,50 +53,42 @@ export const getFilesByTransactionId = cache(async (id: string, userId: string) 
   return []
 })
 
-export const createFile = async (userId: string, data: any) => {
+export const createFile = async ({ tenantId, userId }: TenantScope, data: any) => {
   return await prisma.file.create({
     data: {
       ...data,
+      tenantId,
       userId,
     },
   })
 }
 
-export const updateFile = async (id: string, userId: string, data: any) => {
-  return await prisma.file.update({
-    where: { id, userId },
+export const updateFile = async (id: string, { tenantId }: TenantScope, data: any) => {
+  await prisma.file.updateMany({
+    where: { id, tenantId },
     data,
   })
+
+  return await prisma.file.findUniqueOrThrow({ where: { id } })
 }
 
-export const deleteFile = async (id: string, userId: string) => {
-  const file = await getFileById(id, userId)
+export const deleteFile = async (id: string, scope: TenantScope) => {
+  const file = await getFileById(id, scope)
   if (!file) {
-    return
-  }
-
-  // Security: ensure the resolved path stays within the upload directory
-  const uploadPath = process.env.UPLOAD_PATH || "./data/uploads"
-  const resolvedUploadPath = path.resolve(uploadPath)
-  const resolvedFilePath = path.resolve(resolvedUploadPath, file.path)
-
-  if (!resolvedFilePath.startsWith(resolvedUploadPath + path.sep)) {
-    console.error("Security: attempted path traversal in file delete", { filePath: file.path, resolvedFilePath })
     return
   }
 
   try {
     // Use safePathJoin to prevent path traversal attacks (issue #75).
-    // file.path is relative to the user's uploads directory.
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } })
-    const userUploadsDir = safePathJoin(FILE_UPLOAD_PATH, user.email)
-    const fullPath = safePathJoin(userUploadsDir, file.path)
-    await unlink(fullPath)
+    // file.path is relative to the workspace's uploads directory.
+    const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: scope.tenantId } })
+    const fullPath = safePathJoin(getTenantUploadsDirectory(tenant), file.path)
+    await unlink(path.resolve(fullPath))
   } catch (error) {
     console.error("Error deleting file:", error)
   }
 
   return await prisma.file.delete({
-    where: { id, userId },
+    where: { id },
   })
 }

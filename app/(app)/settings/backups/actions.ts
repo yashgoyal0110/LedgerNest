@@ -2,8 +2,9 @@
 
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser } from "@/lib/auth"
+import { TenantScope } from "@/lib/tenant"
 import { prisma } from "@/lib/db"
-import { getUserUploadsDirectory, safePathJoin } from "@/lib/files"
+import { getTenantUploadsDirectory, safePathJoin } from "@/lib/files"
 import { MODEL_BACKUP, modelFromJSON } from "@/models/backups"
 import { DEFAULT_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_FIELDS, DEFAULT_SETTINGS } from "@/models/defaults"
 import fs from "fs/promises"
@@ -24,7 +25,7 @@ export async function restoreBackupAction(
   formData: FormData
 ): Promise<ActionState<BackupRestoreResult>> {
   const user = await getCurrentUser()
-  const userUploadsDirectory = getUserUploadsDirectory(user)
+  const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
   const file = formData.get("file") as File
 
   if (!file || file.size === 0) {
@@ -70,7 +71,7 @@ export async function restoreBackupAction(
 
     // Remove existing data
     if (REMOVE_EXISTING_DATA) {
-      await cleanupUserTables(user.id)
+      await cleanupWorkspaceTables(user)
       await fs.rm(userUploadsDirectory, { recursive: true, force: true })
     }
 
@@ -82,7 +83,7 @@ export async function restoreBackupAction(
         const jsonFile = zip.file(`data/${backup.filename}`)
         if (jsonFile) {
           const jsonContent = await jsonFile.async("string")
-          const restoredCount = await modelFromJSON(user.id, backup, jsonContent)
+          const restoredCount = await modelFromJSON(user, backup, jsonContent)
           console.log(`Restored ${restoredCount} records from ${backup.filename}`)
           counters[backup.filename] = restoredCount
         }
@@ -100,7 +101,7 @@ export async function restoreBackupAction(
         },
       })
 
-      const userUploadsDirectory = getUserUploadsDirectory(user)
+      const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
 
       for (const file of files) {
         const filePathWithoutPrefix = path.normalize(file.path.replace(/^.*\/uploads\//, ""))
@@ -153,11 +154,11 @@ export async function restoreBackupAction(
   }
 }
 
-async function cleanupUserTables(userId: string) {
+async function cleanupWorkspaceTables(scope: TenantScope) {
   // Delete in reverse order to handle foreign key constraints
   for (const { model } of [...MODEL_BACKUP].reverse()) {
     try {
-      await model.deleteMany({ where: { userId } })
+      await model.deleteMany({ where: { tenantId: scope.tenantId } })
     } catch (error) {
       console.error(`Error clearing table:`, error)
     }
@@ -170,9 +171,9 @@ export async function resetLLMSettingsAction() {
 
   for (const setting of llmSettings) {
     await prisma.setting.upsert({
-      where: { userId_code: { code: setting.code, userId: user.id } },
+      where: { tenantId_code: { code: setting.code, tenantId: user.tenantId } },
       update: { value: setting.value },
-      create: { ...setting, userId: user.id },
+      create: { ...setting, tenantId: user.tenantId, userId: user.id },
     })
   }
 
@@ -184,29 +185,29 @@ export async function resetFieldsAndCategoriesAction() {
 
   for (const category of DEFAULT_CATEGORIES) {
     await prisma.category.upsert({
-      where: { userId_code: { code: category.code, userId: user.id } },
+      where: { tenantId_code: { code: category.code, tenantId: user.tenantId } },
       update: { name: category.name, color: category.color, llm_prompt: category.llm_prompt, createdAt: new Date() },
-      create: { ...category, userId: user.id, createdAt: new Date() },
+      create: { ...category, tenantId: user.tenantId, userId: user.id, createdAt: new Date() },
     })
   }
   await prisma.category.deleteMany({
-    where: { userId: user.id, code: { notIn: DEFAULT_CATEGORIES.map((category) => category.code) } },
+    where: { tenantId: user.tenantId, code: { notIn: DEFAULT_CATEGORIES.map((category) => category.code) } },
   })
 
   for (const currency of DEFAULT_CURRENCIES) {
     await prisma.currency.upsert({
-      where: { userId_code: { code: currency.code, userId: user.id } },
+      where: { tenantId_code: { code: currency.code, tenantId: user.tenantId } },
       update: { name: currency.name },
-      create: { ...currency, userId: user.id },
+      create: { ...currency, tenantId: user.tenantId, userId: user.id },
     })
   }
   await prisma.currency.deleteMany({
-    where: { userId: user.id, code: { notIn: DEFAULT_CURRENCIES.map((currency) => currency.code) } },
+    where: { tenantId: user.tenantId, code: { notIn: DEFAULT_CURRENCIES.map((currency) => currency.code) } },
   })
 
   for (const field of DEFAULT_FIELDS) {
     await prisma.field.upsert({
-      where: { userId_code: { code: field.code, userId: user.id } },
+      where: { tenantId_code: { code: field.code, tenantId: user.tenantId } },
       update: {
         name: field.name,
         type: field.type,
@@ -217,11 +218,11 @@ export async function resetFieldsAndCategoriesAction() {
         isRequired: field.isRequired,
         isExtra: field.isExtra,
       },
-      create: { ...field, userId: user.id, createdAt: new Date() },
+      create: { ...field, tenantId: user.tenantId, userId: user.id, createdAt: new Date() },
     })
   }
   await prisma.field.deleteMany({
-    where: { userId: user.id, code: { notIn: DEFAULT_FIELDS.map((field) => field.code) } },
+    where: { tenantId: user.tenantId, code: { notIn: DEFAULT_FIELDS.map((field) => field.code) } },
   })
 
   redirect("/settings/backups")

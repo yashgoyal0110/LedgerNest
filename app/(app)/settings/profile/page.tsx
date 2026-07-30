@@ -8,8 +8,8 @@ export default async function ProfileSettingsPage() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Profile & Plan"
-        description="Manage your account, subscription, and business details used on invoices."
+        title="Profile"
+        description="Your personal account details, plus the business identity used on this workspace's invoices."
       />
       <div className="w-full max-w-2xl">
         <ProfileSettingsForm user={user} />
