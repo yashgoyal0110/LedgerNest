@@ -1,4 +1,4 @@
-import { fetchEmails } from "@/app/(app)/apps/email/scripts/fetch-emails"
+import { runEmailSync } from "@/lib/email-sync/ingest"
 import { getCurrentUser } from "@/lib/auth"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -13,7 +13,7 @@ export async function POST(_request: NextRequest) {
     console.log(`🔄 Manual email sync triggered by user: ${user.email}`)
 
     // Run the email sync
-    await fetchEmails()
+    await runEmailSync({ tenantId: user.tenantId })
 
     return NextResponse.json({
       success: true,

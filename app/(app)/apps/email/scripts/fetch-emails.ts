@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
-import { runEmailSync } from "@/lib/email-sync/ingest"
 import { prisma } from "@/lib/db"
+import { runEmailSync } from "@/lib/email-sync/ingest"
 
 async function main() {
   console.log(`🚀 Starting email sync at ${new Date().toISOString()}`)
@@ -12,13 +12,19 @@ async function main() {
   for (const e of errored) console.error(`   ❌ ${e.serverId}: ${e.errorMessage}`)
 }
 
-main()
-  .catch((error) => {
-    console.error("💥 Fatal error during email sync:", error)
-    process.exitCode = 1
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+// Only sync when this file is run as a script. Importing it (the build does,
+// while collecting routes) must not kick off a sync against the database.
+const isRunAsScript = process.argv[1]?.includes("fetch-emails") ?? false
+
+if (isRunAsScript) {
+  main()
+    .catch((error) => {
+      console.error("💥 Fatal error during email sync:", error)
+      process.exitCode = 1
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}
 
 export { runEmailSync as fetchEmails }
