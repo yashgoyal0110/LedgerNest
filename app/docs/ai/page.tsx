@@ -49,8 +49,8 @@ export default async function AI() {
         </li>
       </ul>
       <p className="text-gray-700 leading-relaxed mb-6">
-        In the <strong>self-hosted version</strong>, the operator supplies the Gemini API key and remains responsible
-        for reviewing model output.
+        AI results are a starting point, not a substitute for review. Always check extracted figures before relying
+        on them for accounting or tax purposes.
       </p>
 
       <h2 className="text-2xl font-semibold text-gray-800 mt-8 mb-4">3. Data Sent for AI Processing</h2>

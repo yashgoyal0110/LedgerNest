@@ -8,8 +8,8 @@ export default async function PrivacyPolicy() {
       </h2>
 
       <p className="text-slate-700 mb-6 leading-relaxed bg-yellow-50 p-3 border-l-4 border-yellow-400">
-        <strong className="text-slate-800">TL;DR:</strong> If you really care about privacy of your data, use our
-        self-hosted version instead. No cloud is safe. Use the platform is at your own risk.
+        <strong className="text-slate-800">In short:</strong> your documents and records belong to your workspace and
+        are never shared with other workspaces. You can export or delete them at any time.
       </p>
 
       <p className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">

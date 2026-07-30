@@ -32,8 +32,7 @@ export default async function Terms() {
           (monthly/yearly)
         </li>
         <li>
-          A <strong className="text-slate-800">self-hosted version</strong> available for free with no support
-          guarantees
+          A <strong className="text-slate-800">free workspace</strong> that includes a limited number of AI analyses
         </li>
       </ul>
       <p className="text-slate-700 mb-6 leading-relaxed">
