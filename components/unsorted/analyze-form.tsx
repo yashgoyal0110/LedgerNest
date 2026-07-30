@@ -155,7 +155,8 @@ export default function AnalyzeForm({
 
       await saveAsTransaction(pendingFormData)
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Failed to replace transaction")
+      console.error("Replacing transaction failed:", error)
+      setSaveError("We couldn't replace that transaction. Please try again.")
     } finally {
       setIsSaving(false)
     }
@@ -182,7 +183,8 @@ export default function AnalyzeForm({
       }
     } catch (error) {
       console.error("Analysis failed:", error)
-      setAnalyzeError(error instanceof Error ? error.message : "Analysis failed")
+      console.error("Analysis failed:", error)
+      setAnalyzeError("The AI couldn't read this document. Please try again in a moment.")
     } finally {
       setIsAnalyzing(false)
       setAnalyzeStep("")

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
+import { friendly } from "@/lib/errors"
 import {
   getTransactionFileUploadPath,
   getTenantUploadsDirectory,
@@ -155,7 +156,7 @@ export async function saveInvoiceAsTransactionAction(
     console.error("Failed to save invoice as transaction:", error)
     return {
       success: false,
-      error: `Failed to save invoice as transaction: ${error}`,
+      error: friendly("Saving invoice as transaction failed", error, "We couldn't save this invoice. Please try again."),
     }
   }
 }

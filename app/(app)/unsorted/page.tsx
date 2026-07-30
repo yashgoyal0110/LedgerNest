@@ -1,19 +1,17 @@
 import { FilePreview } from "@/components/files/preview"
 import { UploadButton } from "@/components/files/upload-button"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { AnalyzeAllButton } from "@/components/unsorted/analyze-all-button"
 import AnalyzeForm from "@/components/unsorted/analyze-form"
 import { getCurrentUser } from "@/lib/auth"
-import config from "@/lib/config"
 import { getCategories } from "@/models/categories"
 import { getCurrencies } from "@/models/currencies"
 import { getFields } from "@/models/fields"
 import { getUnsortedFiles } from "@/models/files"
 import { getProjects } from "@/models/projects"
 import { getSettings } from "@/models/settings"
-import { FileText, PartyPopper, Settings, Upload } from "lucide-react"
+import { FileText, PartyPopper, Upload } from "lucide-react"
 import { Metadata } from "next"
 import Link from "next/link"
 
@@ -37,25 +35,6 @@ export default async function UnsortedPage() {
         <h2 className="text-3xl font-bold tracking-tight">You have {files.length} unsorted files</h2>
         {files.length > 1 && <AnalyzeAllButton />}
       </header>
-
-      {config.selfHosted.isEnabled &&
-        !settings.google_api_key &&
-        !config.ai.googleApiKey && (
-          <Alert>
-            <Settings className="h-4 w-4 mt-2" />
-            <div className="flex flex-row justify-between pt-2">
-              <div className="flex flex-col">
-                <AlertTitle>A Gemini API key is required for document analysis</AlertTitle>
-                <AlertDescription>
-                  Add your Gemini key in settings or set GEMINI_API_KEY in the deployment environment.
-                </AlertDescription>
-              </div>
-              <Link href="/settings/llm">
-                <Button>Go to Settings</Button>
-              </Link>
-            </div>
-          </Alert>
-        )}
 
       <main className="flex flex-col gap-5">
         {files.map((file) => (

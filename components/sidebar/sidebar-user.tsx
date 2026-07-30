@@ -13,15 +13,14 @@ import { Badge } from "@/components/ui/badge"
 import { AiCreditsMeter } from "@/components/workspace/ai-credits-meter"
 import { UserProfile } from "@/lib/auth"
 import { authClient } from "@/lib/auth-client"
-import config from "@/lib/config"
 import { PLANS } from "@/lib/stripe"
 import { formatBytes } from "@/lib/utils"
 import { Building2, CreditCard, LogOut, MoreVertical, Sparkles, User } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-export default function SidebarUser({ profile, isSelfHosted }: { profile: UserProfile; isSelfHosted: boolean }) {
-  const subtitle = isSelfHosted ? `Version ${config.app.version}` : profile.email
+export default function SidebarUser({ profile }: { profile: UserProfile }) {
+  const subtitle = profile.email
   const planName = PLANS[profile.tenant.plan as keyof typeof PLANS]?.name ?? profile.tenant.plan
 
   const signOut = async () => {
@@ -95,27 +94,21 @@ export default function SidebarUser({ profile, isSelfHosted }: { profile: UserPr
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {!isSelfHosted && (
-          <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <Link href="/api/stripe/portal" className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Billing
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        )}
-        {!isSelfHosted && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <span onClick={signOut} className="flex items-center gap-2 text-red-600 cursor-pointer">
-                <LogOut className="h-4 w-4" />
-                Log out
-              </span>
-            </DropdownMenuItem>
-          </>
-        )}
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/api/stripe/portal" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Billing
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <span onClick={signOut} className="flex items-center gap-2 text-red-600 cursor-pointer">
+            <LogOut className="h-4 w-4" />
+            Log out
+          </span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

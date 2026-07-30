@@ -25,7 +25,8 @@ export function PricingCard({ plan, hideButton = false }: { plan: Plan; hideButt
         window.location.href = data.session.url
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : "An unknown error occurred")
+      console.error("Checkout failed:", error)
+      setError("We couldn't open the checkout page. Please try again.")
     } finally {
       setIsLoading(false)
     }

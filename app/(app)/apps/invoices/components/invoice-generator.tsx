@@ -8,6 +8,7 @@ import { Currency, User, Tenant } from "@/prisma/client"
 import { FileDown, Loader2, Save, TextSelect, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { startTransition, useMemo, useReducer, useState } from "react"
+import { toast } from "sonner"
 import {
   addNewTemplateAction,
   deleteTemplateAction,
@@ -134,7 +135,7 @@ export function InvoiceGenerator({
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
+      toast.error("We couldn't generate that PDF. Please try again.")
     } finally {
       setIsPdfLoading(false)
     }
@@ -142,12 +143,12 @@ export function InvoiceGenerator({
 
   const handleSaveTemplate = async () => {
     if (!newTemplateName.trim()) {
-      alert("Please enter a template name")
+      toast.error("Give this template a name first.")
       return
     }
 
     if (templates.some((t) => t.name === newTemplateName)) {
-      alert("A template with this name already exists")
+      toast.error("A template with that name already exists. Try another name.")
       return
     }
 
@@ -163,11 +164,11 @@ export function InvoiceGenerator({
         setNewTemplateName("")
         router.refresh()
       } else {
-        alert("Failed to save template. Please try again.")
+        toast.error("We couldn't save that template. Please try again.")
       }
     } catch (error) {
       console.error("Error saving template:", error)
-      alert("Failed to save template. Please try again.")
+      toast.error("We couldn't save that template. Please try again.")
     }
   }
 
@@ -182,7 +183,7 @@ export function InvoiceGenerator({
       }
     } catch (error) {
       console.error("Error deleting template:", error)
-      alert("Failed to delete template. Please try again.")
+      toast.error("We couldn't delete that template. Please try again.")
     }
   }
 
@@ -203,11 +204,11 @@ export function InvoiceGenerator({
           router.push(`/transactions/${result.data?.id}`)
         })
       } else {
-        alert(result.error || "Failed to save as transaction")
+        toast.error(result.error || "We couldn't save this invoice. Please try again.")
       }
     } catch (error) {
       console.error("Error saving as transaction:", error)
-      alert("Failed to save as transaction. Please try again.")
+      toast.error("We couldn't save this invoice. Please try again.")
     } finally {
       setIsSavingTransaction(false)
     }

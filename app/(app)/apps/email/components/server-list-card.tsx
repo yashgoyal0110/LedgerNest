@@ -73,7 +73,7 @@ export function ServerListCard({ servers, onEditServer, isPending }: ServerListC
     if (result.success) {
       toast.success("Email server deleted successfully")
     } else {
-      toast.error(result.error || "Failed to delete email server")
+      toast.error(result.error || "We couldn't remove that mailbox. Please try again.")
     }
   }
 
@@ -91,7 +91,7 @@ export function ServerListCard({ servers, onEditServer, isPending }: ServerListC
     if (result.success) {
       toast.success("Email sync completed")
     } else {
-      toast.error(result.error || "Failed to sync emails")
+      toast.error(result.error || "We couldn't check that mailbox just now. Please try again.")
     }
   }
 

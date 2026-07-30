@@ -1,6 +1,7 @@
 "use server"
 
 import { ActionState } from "@/lib/actions"
+import { friendly, MESSAGES } from "@/lib/errors"
 import { TenantScope } from "@/lib/tenant"
 import { updateFile } from "@/models/files"
 import { getLLMSettings, getSettings } from "@/models/settings"
@@ -52,7 +53,7 @@ export async function analyzeTransaction(
     console.error("AI Analysis error:", error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to analyze invoice",
+      error: friendly("Document analysis failed", error, MESSAGES.analyze),
     }
   }
 }

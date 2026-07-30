@@ -2,6 +2,7 @@
 
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser } from "@/lib/auth"
+import { friendly } from "@/lib/errors"
 import { TenantScope } from "@/lib/tenant"
 import { prisma } from "@/lib/db"
 import { getTenantUploadsDirectory, safePathJoin } from "@/lib/files"
@@ -29,11 +30,14 @@ export async function restoreBackupAction(
   const file = formData.get("file") as File
 
   if (!file || file.size === 0) {
-    return { success: false, error: "No file provided" }
+    return { success: false, error: "Choose a backup file to restore." }
   }
 
   if (file.size > MAX_BACKUP_SIZE) {
-    return { success: false, error: `Backup file too large. Maximum size is ${MAX_BACKUP_SIZE / 1024 / 1024}MB` }
+    return {
+      success: false,
+      error: `That backup is too large. The maximum size is ${MAX_BACKUP_SIZE / 1024 / 1024} MB.`,
+    }
   }
 
   // Read zip archive
@@ -43,7 +47,10 @@ export async function restoreBackupAction(
     const fileData = Buffer.from(fileBuffer)
     zip = await JSZip.loadAsync(fileData)
   } catch (error) {
-    return { success: false, error: "Bad zip archive: " + (error as Error).message }
+    return {
+      success: false,
+      error: friendly("Backup archive could not be opened", error, "That file isn't a LedgerNest backup we can read. Please choose another one."),
+    }
   }
 
   // Check metadata and start restoring
@@ -56,9 +63,7 @@ export async function restoreBackupAction(
         if (!metadata.version || !SUPPORTED_BACKUP_VERSIONS.includes(metadata.version)) {
           return {
             success: false,
-            error: `Incompatible backup version: ${
-              metadata.version || "unknown"
-            }. Supported versions: ${SUPPORTED_BACKUP_VERSIONS.join(", ")}`,
+            error: "This backup was made by a different version of LedgerNest and can't be restored here.",
           }
         }
         console.log(`Restoring backup version ${metadata.version} created at ${metadata.timestamp}`)
@@ -140,7 +145,7 @@ export async function restoreBackupAction(
       console.error("Error restoring uploaded files:", error)
       return {
         success: false,
-        error: `Error restoring uploaded files: ${error instanceof Error ? error.message : String(error)}`,
+        error: friendly("Restoring uploaded files failed", error, "We restored your records, but some documents could not be unpacked."),
       }
     }
 
@@ -149,7 +154,7 @@ export async function restoreBackupAction(
     console.error("Error restoring from backup:", error)
     return {
       success: false,
-      error: `Error restoring from backup: ${error instanceof Error ? error.message : String(error)}`,
+      error: friendly("Restoring from backup failed", error, "We couldn't restore that backup. Check the file and try again."),
     }
   }
 }

@@ -1,6 +1,5 @@
 "use server"
 
-import { LLMConfig, LLMProvider, testLLMProvider } from "@/ai/providers/llmProvider"
 import {
   categoryFormSchema,
   currencyFormSchema,
@@ -10,6 +9,7 @@ import {
 } from "@/forms/settings"
 import { userFormSchema } from "@/forms/users"
 import { ActionState } from "@/lib/actions"
+import { describeFormError, friendly } from "@/lib/errors"
 import { getCurrentUser } from "@/lib/auth"
 import { uploadStaticImage } from "@/lib/uploads"
 import { codeFromName, randomHexColor } from "@/lib/utils"
@@ -32,7 +32,7 @@ export async function saveSettingsAction(
   const validatedForm = settingsFormSchema.safeParse(Object.fromEntries(formData))
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   for (const key in validatedForm.data) {
@@ -47,21 +47,6 @@ export async function saveSettingsAction(
   return { success: true }
 }
 
-export async function testLLMProviderAction(
-  provider: string,
-  apiKey: string,
-  model: string,
-  baseUrl?: string
-): Promise<{ success: boolean; supportsVision: boolean; message: string }> {
-  const config: LLMConfig = {
-    provider: provider as LLMProvider,
-    apiKey: apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "",
-    model,
-    baseUrl,
-  }
-  return testLLMProvider(config)
-}
-
 export async function saveProfileAction(
   _prevState: ActionState<User> | null,
   formData: FormData
@@ -70,7 +55,7 @@ export async function saveProfileAction(
   const validatedForm = userFormSchema.safeParse(Object.fromEntries(formData))
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   // Upload avatar
@@ -81,7 +66,7 @@ export async function saveProfileAction(
       const uploadedAvatarPath = await uploadStaticImage(user.tenant, avatarFile, "avatar.webp", 500, 500)
       avatarUrl = `/files/static/${path.basename(uploadedAvatarPath)}`
     } catch (error) {
-      return { success: false, error: "Failed to upload avatar: " + error }
+      return { success: false, error: friendly("Avatar upload failed", error, "We couldn't upload that picture. Please try another image.") }
     }
   }
 
@@ -99,7 +84,7 @@ export async function saveProfileAction(
       )
       businessLogoUrl = `/files/static/${path.basename(uploadedBusinessLogoPath)}`
     } catch (error) {
-      return { success: false, error: "Failed to upload business logo: " + error }
+      return { success: false, error: friendly("Business logo upload failed", error, "We couldn't upload that logo. Please try another image.") }
     }
   }
 
@@ -160,7 +145,7 @@ export async function addProjectAction(data: Prisma.ProjectCreateInput) {
   const validatedForm = projectFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const project = await createProject(scope, {
@@ -179,7 +164,7 @@ export async function editProjectAction(code: string, data: Prisma.ProjectUpdate
   const validatedForm = projectFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const project = await updateProject(scope, code, {
@@ -197,7 +182,7 @@ export async function deleteProjectAction(code: string) {
   try {
     await deleteProject(scope, code)
   } catch (error) {
-    return { success: false, error: "Failed to delete project" + error }
+    return { success: false, error: friendly("Delete project failed", error, "We couldn't delete that project. Please try again.") }
   }
   revalidatePath("/settings/projects")
   return { success: true }
@@ -208,7 +193,7 @@ export async function addCurrencyAction(data: Prisma.CurrencyCreateInput) {
   const validatedForm = currencyFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const currency = await createCurrency(scope, {
@@ -225,7 +210,7 @@ export async function editCurrencyAction(code: string, data: Prisma.CurrencyUpda
   const validatedForm = currencyFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const currency = await updateCurrency(scope, code, { name: validatedForm.data.name })
@@ -238,7 +223,7 @@ export async function deleteCurrencyAction(code: string) {
   try {
     await deleteCurrency(scope, code)
   } catch (error) {
-    return { success: false, error: "Failed to delete currency" + error }
+    return { success: false, error: friendly("Delete currency failed", error, "We couldn't delete that currency. Please try again.") }
   }
   revalidatePath("/settings/currencies")
   return { success: true }
@@ -249,7 +234,7 @@ export async function addCategoryAction(data: Prisma.CategoryCreateInput) {
   const validatedForm = categoryFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const code = codeFromName(validatedForm.data.name)
@@ -267,10 +252,10 @@ export async function addCategoryAction(data: Prisma.CategoryCreateInput) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return {
         success: false,
-        error: `Category with the code "${code}" already exists. Try a different name.`,
+        error: `A category named "${validatedForm.data.name}" already exists. Try a different name.`,
       }
     }
-    return { success: false, error: "Failed to create category" }
+    return { success: false, error: "We couldn't create that category. Please try again." }
   }
 }
 
@@ -279,7 +264,7 @@ export async function editCategoryAction(code: string, data: Prisma.CategoryUpda
   const validatedForm = categoryFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const category = await updateCategory(scope, code, {
@@ -297,7 +282,7 @@ export async function deleteCategoryAction(code: string) {
   try {
     await deleteCategory(scope, code)
   } catch (error) {
-    return { success: false, error: "Failed to delete category" + error }
+    return { success: false, error: friendly("Delete category failed", error, "We couldn't delete that category. Please try again.") }
   }
   revalidatePath("/settings/categories")
   return { success: true }
@@ -308,7 +293,7 @@ export async function addFieldAction(data: Prisma.FieldCreateInput) {
   const validatedForm = fieldFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const field = await createField(scope, {
@@ -331,7 +316,7 @@ export async function editFieldAction(code: string, data: Prisma.FieldUpdateInpu
   const validatedForm = fieldFormSchema.safeParse(data)
 
   if (!validatedForm.success) {
-    return { success: false, error: validatedForm.error.message }
+    return { success: false, error: describeFormError(validatedForm.error) }
   }
 
   const field = await updateField(scope, code, {
@@ -352,7 +337,7 @@ export async function deleteFieldAction(code: string) {
   try {
     await deleteField(scope, code)
   } catch (error) {
-    return { success: false, error: "Failed to delete field" + error }
+    return { success: false, error: friendly("Delete field failed", error, "We couldn't delete that field. Please try again.") }
   }
   revalidatePath("/settings/fields")
   return { success: true }

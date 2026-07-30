@@ -39,12 +39,15 @@ export function LoginForm({ defaultEmail, isDemoEnabled = false }: { defaultEmai
     try {
       const result = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" })
       if (result.error) {
-        setError(result.error.message || "Failed to send the code")
+        // better-auth reports "user not found" for unknown addresses; keep the
+        // wording vague so the form can't be used to probe for accounts.
+        setError("We couldn't send a code to that address. Check the spelling and try again.")
         return
       }
       setIsOtpSent(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send the code")
+      console.error("Sending the sign-in code failed:", err)
+      setError("We couldn't send your code just now. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -58,12 +61,13 @@ export function LoginForm({ defaultEmail, isDemoEnabled = false }: { defaultEmai
     try {
       const result = await authClient.signIn.emailOtp({ email, otp })
       if (result.error) {
-        setError("The code is invalid or expired")
+        setError("That code is incorrect or has expired. Request a new one.")
         return
       }
       router.push("/dashboard")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify the code")
+      console.error("Verifying the sign-in code failed:", err)
+      setError("We couldn't check that code just now. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -77,13 +81,14 @@ export function LoginForm({ defaultEmail, isDemoEnabled = false }: { defaultEmai
     try {
       const result = await authClient.signIn.email({ email, password })
       if (result.error) {
-        setError(result.error.message || "Incorrect email or password")
+        setError("That email and password don't match. Please try again.")
         return
       }
       router.push("/dashboard")
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sign in")
+      console.error("Password sign-in failed:", err)
+      setError("We couldn't sign you in just now. Please try again.")
     } finally {
       setIsLoading(false)
     }

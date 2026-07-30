@@ -57,16 +57,9 @@ docker compose up -d --build
 
 Persistent data is stored in `./data` (uploads) and `./pgdata` (database). Back these up before upgrades.
 
-## Modes
-
-| Mode | `SELF_HOSTED_MODE` | Behaviour |
-| --- | --- | --- |
-| Cloud / multi-tenant (default) | `false` | Sign-in required; one workspace per business; per-workspace AI quota; demo workspace available |
-| Single-user self-hosted | `true` | No sign-in, one implicit workspace with unlimited quota; the demo is disabled |
-
 ## Demo workspace
 
-With `DEMO_MODE=true` (cloud mode only), the login page offers a one-click way in:
+With `DEMO_MODE=true`, the login page offers a one-click way in:
 
 - **Enter demo workspace** — provisions, seeds, and signs in immediately.
 - **Fill demo credentials** — fills the email and password into the form so the visitor can see them before signing in.
@@ -84,14 +77,13 @@ endpoint by setting `CRON_SECRET`).
 | Variable | Purpose |
 | --- | --- |
 | `APP_URL` | Public HTTPS URL served by the existing Caddy instance |
-| `SELF_HOSTED_MODE` | `false` (default) for multi-tenant cloud mode, `true` for single-user mode |
 | `GEMINI_API_KEY` | Gemini API key used for document analysis |
 | `GOOGLE_MODEL_NAME` | Gemini model; defaults to `gemini-2.5-flash` |
 | `POSTGRES_PASSWORD` | Password for the internal PostgreSQL service |
 | `BETTER_AUTH_SECRET` | Long random secret used for sessions and credential encryption |
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | Sends the one-time login codes; not needed for demo sign-in |
 | `DISABLE_SIGNUP` | Blocks new self-service accounts |
-| `DEMO_MODE` | Enables the shared demo workspace (default `true` in cloud mode) |
+| `DEMO_MODE` | Enables the shared demo workspace (default `true`) |
 | `DEMO_EMAIL` / `DEMO_PASSWORD` | Credentials for the demo account |
 | `CRON_SECRET` | Bearer token required by `/api/cron/refill-ai-credits` |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional; subscriptions are applied to the workspace |

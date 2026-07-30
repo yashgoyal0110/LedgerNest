@@ -7,7 +7,7 @@ export async function POST(_request: NextRequest) {
     // Verify user is authenticated
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 })
     }
 
     console.log(`🔄 Manual email sync triggered by user: ${user.email}`)
@@ -24,10 +24,7 @@ export async function POST(_request: NextRequest) {
     console.error("❌ Error in manual email sync:", error)
 
     return NextResponse.json(
-      {
-        error: "Email sync failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "We couldn't check your mailboxes just now. Please try again in a moment." },
       { status: 500 }
     )
   }
@@ -38,7 +35,7 @@ export async function GET(_request: NextRequest) {
     // Verify user is authenticated
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 })
     }
 
     return NextResponse.json({
@@ -48,6 +45,6 @@ export async function GET(_request: NextRequest) {
       description: "Trigger manual email synchronization",
     })
   } catch (_error) {
-    return NextResponse.json({ error: "Failed to get sync status" }, { status: 500 })
+    return NextResponse.json({ error: "We couldn't check the mail sync status. Please try again." }, { status: 500 })
   }
 }

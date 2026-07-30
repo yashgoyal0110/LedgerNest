@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Check, Edit, Trash2 } from "lucide-react"
 import { useOptimistic, useState } from "react"
+import { toast } from "sonner"
 
 interface CrudColumn<T> {
   key: keyof T
@@ -224,7 +225,7 @@ export function CrudTable<T extends Record<string, unknown>>({ items, columns, o
         setIsAdding(false)
         setNewItem(itemDefaults(columns))
       } else {
-        alert(result.error)
+        toast.error(result.error || "We couldn't save that change. Please try again.")
       }
     } catch (error) {
       console.error("Failed to add item:", error)
@@ -239,7 +240,7 @@ export function CrudTable<T extends Record<string, unknown>>({ items, columns, o
         setEditingId(null)
         setEditingItem({})
       } else {
-        alert(result.error)
+        toast.error(result.error || "We couldn't save that change. Please try again.")
       }
     } catch (error) {
       console.error("Failed to edit item:", error)
@@ -255,7 +256,7 @@ export function CrudTable<T extends Record<string, unknown>>({ items, columns, o
     try {
       const result = await onDelete(id)
       if (!result.success) {
-        alert(result.error)
+        toast.error(result.error || "We couldn't save that change. Please try again.")
       }
     } catch (error) {
       console.error("Failed to delete item:", error)

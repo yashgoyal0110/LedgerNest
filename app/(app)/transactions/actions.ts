@@ -2,6 +2,7 @@
 
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
+import { describeFormError, friendly, MESSAGES } from "@/lib/errors"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import {
   getTransactionFileUploadPath,
@@ -36,7 +37,7 @@ export async function createTransactionAction(
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedForm.success) {
-      return { success: false, error: validatedForm.error.message }
+      return { success: false, error: describeFormError(validatedForm.error) }
     }
 
     const forceSave = formData.get("forceSave") === "true"
@@ -65,7 +66,7 @@ export async function createTransactionAction(
     return { success: true, data: newTransaction }
   } catch (error) {
     console.error("Failed to create transaction:", error)
-    return { success: false, error: "Failed to create transaction" }
+    return { success: false, error: "We couldn't create that transaction. Please try again." }
   }
 }
 
@@ -79,7 +80,7 @@ export async function saveTransactionAction(
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedForm.success) {
-      return { success: false, error: validatedForm.error.message }
+      return { success: false, error: describeFormError(validatedForm.error) }
     }
 
     const transaction = await updateTransaction(transactionId, user, validatedForm.data)
@@ -88,7 +89,7 @@ export async function saveTransactionAction(
     return { success: true, data: transaction }
   } catch (error) {
     console.error("Failed to update transaction:", error)
-    return { success: false, error: "Failed to save transaction" }
+    return { success: false, error: "We couldn't save your changes. Please try again." }
   }
 }
 
@@ -108,7 +109,7 @@ export async function deleteTransactionAction(
     return { success: true, data: transaction }
   } catch (error) {
     console.error("Failed to delete transaction:", error)
-    return { success: false, error: "Failed to delete transaction" }
+    return { success: false, error: "We couldn't delete that transaction. Please try again." }
   }
 }
 
@@ -123,7 +124,7 @@ export async function deleteTransactionFileAction(
   const user = await getCurrentUser()
   const transaction = await getTransactionById(transactionId, user)
   if (!transaction) {
-    return { success: false, error: "Transaction not found" }
+    return { success: false, error: "We couldn't find that transaction. It may have been deleted." }
   }
 
   await updateTransactionFiles(
@@ -152,7 +153,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
     const user = await getCurrentUser()
     const transaction = await getTransactionById(transactionId, user)
     if (!transaction) {
-      return { success: false, error: "Transaction not found" }
+      return { success: false, error: "We couldn't find that transaction. It may have been deleted." }
     }
 
     const userUploadsDirectory = getTenantUploadsDirectory(user.tenant)
@@ -214,7 +215,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
     return { success: true }
   } catch (error) {
     console.error("Upload error:", error)
-    return { success: false, error: `File upload failed: ${error}` }
+    return { success: false, error: friendly("Attaching files to a transaction failed", error, MESSAGES.upload) }
   }
 }
 
@@ -226,7 +227,7 @@ export async function bulkDeleteTransactionsAction(transactionIds: string[]) {
     return { success: true }
   } catch (error) {
     console.error("Failed to delete transactions:", error)
-    return { success: false, error: "Failed to delete transactions" }
+    return { success: false, error: "We couldn't delete those transactions. Please try again." }
   }
 }
 
@@ -239,6 +240,6 @@ export async function updateFieldVisibilityAction(fieldCode: string, isVisible: 
     return { success: true }
   } catch (error) {
     console.error("Failed to update field visibility:", error)
-    return { success: false, error: "Failed to update field visibility" }
+    return { success: false, error: "We couldn't update which columns are shown. Please try again." }
   }
 }

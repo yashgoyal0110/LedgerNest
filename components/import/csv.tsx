@@ -7,6 +7,7 @@ import { Field } from "@/prisma/client"
 import { Loader2, Play, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { startTransition, useActionState, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 const MAX_PREVIEW_ROWS = 100
 
@@ -68,7 +69,7 @@ export function ImportCSVTable({ fields }: { fields: Field[] }) {
     if (csvData.length === 0) return
 
     if (!isAtLeastOneFieldMapped(columnMappings)) {
-      alert("Please map at least one column to a field")
+      toast.error("Match at least one column to a field before importing.")
       return
     }
 

@@ -22,7 +22,7 @@ export function EditServerDialog({ server, isOpen, onClose, isPending }: EditSer
       toast.success("Email server updated successfully")
       onClose()
     } else {
-      toast.error(result.error || "Failed to update email server")
+      toast.error(result.error || "We couldn't update that mailbox. Please try again.")
     }
   }
 

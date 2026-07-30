@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { tenantScope, UNLIMITED } from "@/lib/tenant"
+import { tenantScope } from "@/lib/tenant"
 import { Prisma, Tenant, User } from "@/prisma/client"
 import { cache } from "react"
 import { createUserDefaults, isDatabaseEmpty } from "./defaults"
@@ -7,58 +7,6 @@ import { createTenant, uniqueTenantSlug } from "./tenants"
 
 export type UserWithTenant = User & { tenant: Tenant }
 
-export const SELF_HOSTED_USER = {
-  email: "ledgernest@localhost",
-  name: "LedgerNest",
-}
-
-export const SELF_HOSTED_TENANT = {
-  slug: "self-hosted",
-  name: "LedgerNest",
-  plan: "unlimited",
-  aiCreditsLimit: UNLIMITED,
-  storageLimit: UNLIMITED,
-}
-
-export const getSelfHostedUser = cache(async (): Promise<UserWithTenant | null> => {
-  if (!process.env.DATABASE_URL) {
-    return null // fix for CI, do not remove
-  }
-
-  return await prisma.user.findFirst({
-    where: { email: SELF_HOSTED_USER.email },
-    include: { tenant: true },
-  })
-})
-
-export const getOrCreateSelfHostedUser = cache(async (): Promise<UserWithTenant> => {
-  const existing = await prisma.user.findUnique({
-    where: { email: SELF_HOSTED_USER.email },
-    include: { tenant: true },
-  })
-
-  if (existing) {
-    return existing
-  }
-
-  const tenant =
-    (await prisma.tenant.findUnique({ where: { slug: SELF_HOSTED_TENANT.slug } })) ??
-    (await createTenant(SELF_HOSTED_TENANT))
-
-  const user = await prisma.user.create({
-    data: { ...SELF_HOSTED_USER, tenantId: tenant.id, role: "owner" },
-    include: { tenant: true },
-  })
-
-  await createUserDefaults(tenantScope(user))
-
-  return user
-})
-
-/**
- * Signs a cloud user in for the first time by giving them their own workspace.
- * Existing users keep the workspace they already belong to.
- */
 export type TenantSubscription = {
   stripeCustomerId?: string
   plan?: string
@@ -79,6 +27,10 @@ function subscriptionToTenantData(subscription: TenantSubscription): Prisma.Tena
   }
 }
 
+/**
+ * Signs a user in for the first time by giving them their own workspace.
+ * Existing users keep the workspace they already belong to.
+ */
 export async function getOrCreateCloudUser(
   email: string,
   data: Omit<Prisma.UserCreateInput, "tenant">,

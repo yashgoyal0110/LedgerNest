@@ -51,7 +51,8 @@ export const CurrencyConverterTool = ({
       console.error("Error fetching currency rates:", error)
       setExchangeRate(0)
       setConvertedTotal(0)
-      setError(error instanceof Error ? error.message : "Failed to fetch currency rate")
+      console.error("Currency conversion failed:", error)
+      setError("We couldn't fetch that exchange rate. Please try again.")
     } finally {
       setIsLoading(false)
     }

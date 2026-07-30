@@ -1,6 +1,7 @@
 "use server"
 
 import { ActionState } from "@/lib/actions"
+import { friendly } from "@/lib/errors"
 import { getCurrentUser } from "@/lib/auth"
 import { EXPORT_AND_IMPORT_FIELD_MAP } from "@/models/export_and_import"
 import { createTransaction, findDuplicateTransaction } from "@/models/transactions"
@@ -39,7 +40,7 @@ export async function parseCSVAction(
     return { success: true, data: rows }
   } catch (error) {
     console.error("Error parsing CSV:", error)
-    return { success: false, error: "Failed to parse CSV file" }
+    return { success: false, error: "We couldn't read that CSV file. Check the format and try again." }
   }
 }
 
@@ -96,6 +97,6 @@ export async function saveTransactionsAction(
     return { success: true }
   } catch (error) {
     console.error("Error saving transactions:", error)
-    return { success: false, error: "Failed to save transactions: " + error }
+    return { success: false, error: friendly("CSV import failed", error, "We couldn't import those rows. Check the file and try again.") }
   }
 }

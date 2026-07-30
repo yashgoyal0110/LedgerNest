@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
     const file = await getFileById(fileId, user)
 
     if (!file || file.userId !== user.id) {
-      return new NextResponse("File not found or does not belong to the user", { status: 404 })
+      return new NextResponse("We couldn't find that document in this workspace.", { status: 404 })
     }
 
     // Check if file exists

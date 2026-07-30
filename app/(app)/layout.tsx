@@ -43,7 +43,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AppSidebar
             profile={userProfile}
             unsortedFilesCount={unsortedFilesCount}
-            isSelfHosted={config.selfHosted.isEnabled}
             apps={apps.map((app) => ({
               id: app.id,
               name: app.manifest.name,

@@ -14,7 +14,7 @@ export async function uploadFilesAction(formData: FormData): Promise<ActionState
   // Check limits
   const totalFileSize = files.reduce((acc, file) => acc + file.size, 0)
   if (!isEnoughStorageToUploadFile(user.tenant, totalFileSize)) {
-    return { success: false, error: `Insufficient storage to upload these files` }
+    return { success: false, error: "This workspace is out of storage. Free up space or upgrade the plan." }
   }
 
   if (isSubscriptionExpired(user)) {
@@ -28,7 +28,7 @@ export async function uploadFilesAction(formData: FormData): Promise<ActionState
   await Promise.all(
     files.map(async (file) => {
       if (!(file instanceof File)) {
-        return { success: false, error: "Invalid file" }
+        return { success: false, error: "That file couldn't be read. Please try another one." }
       }
       const arrayBuffer = await file.arrayBuffer()
       return await ingestUnsortedFile(user.tenant, user, {

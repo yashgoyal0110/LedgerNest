@@ -7,16 +7,16 @@ export async function POST(request: NextRequest) {
   const code = searchParams.get("code")
 
   if (!code) {
-    return NextResponse.json({ error: "Missing plan code" }, { status: 400 })
+    return NextResponse.json({ error: "Choose a plan to continue." }, { status: 400 })
   }
 
   if (!stripeClient) {
-    return NextResponse.json({ error: "Stripe is not enabled" }, { status: 500 })
+    return NextResponse.json({ error: "Payments aren't available right now. Please contact support." }, { status: 500 })
   }
 
   const plan = PLANS[code]
   if (!plan || !plan.isAvailable) {
-    return NextResponse.json({ error: "Invalid or inactive plan" }, { status: 400 })
+    return NextResponse.json({ error: "That plan isn't available. Please choose another one." }, { status: 400 })
   }
 
   try {
@@ -39,12 +39,12 @@ export async function POST(request: NextRequest) {
 
     if (!session.url) {
       console.log(session)
-      return NextResponse.json({ error: `Failed to create checkout session: ${session}` }, { status: 500 })
+      return NextResponse.json({ error: "We couldn't open the checkout page. Please try again." }, { status: 500 })
     }
 
     return NextResponse.json({ session })
   } catch (error) {
     console.error(error)
-    return NextResponse.json({ error: `Failed to create checkout session: ${error}` }, { status: 500 })
+    return NextResponse.json({ error: "We couldn't open the checkout page. Please try again." }, { status: 500 })
   }
 }

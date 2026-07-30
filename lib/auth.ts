@@ -1,6 +1,6 @@
 import config from "@/lib/config"
 import { refillAiCreditsIfDue } from "@/models/tenants"
-import { getSelfHostedUser, getUserByEmail, getUserById, UserWithTenant } from "@/models/users"
+import { getUserByEmail, getUserById, UserWithTenant } from "@/models/users"
 import { Tenant } from "@/prisma/client"
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
@@ -86,11 +86,6 @@ export const auth = betterAuth({
 })
 
 export async function getSession() {
-  if (config.selfHosted.isEnabled) {
-    const user = await getSelfHostedUser()
-    return user ? { user } : null
-  }
-
   return await auth.api.getSession({
     headers: await headers(),
   })
@@ -101,14 +96,6 @@ function withScope(user: UserWithTenant, tenant: Tenant): AppUser {
 }
 
 export async function getCurrentUser(): Promise<AppUser> {
-  if (config.selfHosted.isEnabled) {
-    const user = await getSelfHostedUser()
-    if (user) {
-      return withScope(user, await refillAiCreditsIfDue(user.tenant))
-    }
-    redirect(config.selfHosted.redirectUrl)
-  }
-
   const session = await getSession()
   if (session && session.user) {
     const user = await getUserById(session.user.id)
@@ -143,15 +130,9 @@ export function toUserProfile(user: AppUser): UserProfile {
 }
 
 export function isSubscriptionExpired(user: AppUser) {
-  if (config.selfHosted.isEnabled) {
-    return false
-  }
   return Boolean(user.tenant.membershipExpiresAt && user.tenant.membershipExpiresAt < new Date())
 }
 
 export function isAiBalanceExhausted(user: AppUser) {
-  if (config.selfHosted.isEnabled) {
-    return false
-  }
   return aiQuotaOf(user.tenant).isExhausted
 }

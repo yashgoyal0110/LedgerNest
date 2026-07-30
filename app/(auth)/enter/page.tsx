@@ -4,7 +4,6 @@ import config from "@/lib/config"
 import { BarChart3, FileStack, Building2, ShieldCheck, Sparkles } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 
 const HIGHLIGHTS = [
   {
@@ -25,15 +24,11 @@ const HIGHLIGHTS = [
   {
     icon: FileStack,
     title: "Your documents stay yours",
-    body: "Self-host it or run it in our cloud — the archive is always exportable.",
+    body: "Export the whole archive whenever you want — records and original documents alike.",
   },
 ]
 
 export default async function LoginPage() {
-  if (config.selfHosted.isEnabled) {
-    redirect(config.selfHosted.redirectUrl)
-  }
-
   return (
     <div className="grid w-full max-w-6xl gap-10 lg:grid-cols-[1.05fr_minmax(380px,440px)] lg:items-center">
       <section className="hidden flex-col gap-8 text-white lg:flex">

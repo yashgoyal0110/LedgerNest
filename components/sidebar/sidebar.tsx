@@ -18,7 +18,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { UserProfile } from "@/lib/auth"
-import config from "@/lib/config"
 import {
   Building2,
   ClockArrowUp,
@@ -62,19 +61,17 @@ const settingsItems = [
 export function AppSidebar({
   profile,
   unsortedFilesCount,
-  isSelfHosted,
   apps,
 }: {
   profile: UserProfile
   unsortedFilesCount: number
-  isSelfHosted: boolean
   apps: SidebarApp[]
 }) {
   const { open, setOpenMobile } = useSidebar()
   const pathname = usePathname()
   const { notification } = useNotification()
-  const accountTitle = profile.name || profile.email
-  const accountSubtitle = isSelfHosted ? `Version ${config.app.version}` : profile.email
+  const accountTitle = profile.tenant.name
+  const accountSubtitle = profile.name || profile.email
 
   // Hide sidebar on mobile when clicking an item
   useEffect(() => {
@@ -203,17 +200,15 @@ export function AppSidebar({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {!isSelfHosted && (
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarUser profile={profile} isSelfHosted={isSelfHosted} />
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarUser profile={profile} />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarFooter>
       </Sidebar>
     </>

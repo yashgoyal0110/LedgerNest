@@ -4,7 +4,6 @@ import packageJson from "../package.json"
 const envSchema = z.object({
   BASE_URL: z.string().url().default("http://localhost:3003"),
   PORT: z.string().default("7331"),
-  SELF_HOSTED_MODE: z.enum(["true", "false"]).default("true"),
   GEMINI_API_KEY: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_MODEL_NAME: z.string().default("gemini-2.5-flash"),
@@ -49,11 +48,6 @@ const config = {
       maxHeight: 1500,
     },
   },
-  selfHosted: {
-    isEnabled: env.SELF_HOSTED_MODE === "true",
-    redirectUrl: "/self-hosted/redirect",
-    welcomeUrl: "/self-hosted",
-  },
   ai: {
     googleApiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
     googleModelName: env.GOOGLE_MODEL_NAME,
@@ -61,7 +55,7 @@ const config = {
   auth: {
     secret: env.BETTER_AUTH_SECRET,
     loginUrl: "/enter",
-    disableSignup: env.DISABLE_SIGNUP === "true" || env.SELF_HOSTED_MODE === "true",
+    disableSignup: env.DISABLE_SIGNUP === "true",
   },
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY,
@@ -76,8 +70,7 @@ const config = {
   },
   demo: {
     // A shared, self-resetting workspace anyone can enter in one click.
-    // Disabled automatically in self-hosted mode, where there is only one user.
-    isEnabled: env.DEMO_MODE === "true" && env.SELF_HOSTED_MODE !== "true",
+    isEnabled: env.DEMO_MODE === "true",
     email: env.DEMO_EMAIL.toLowerCase(),
     password: env.DEMO_PASSWORD,
     name: "Demo User",

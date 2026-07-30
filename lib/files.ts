@@ -2,7 +2,6 @@ import { File, Tenant, Transaction } from "@/prisma/client"
 import { formatDate } from "date-fns"
 import { access, constants, readdir, stat } from "fs/promises"
 import path from "path"
-import config from "./config"
 
 export const FILE_UPLOAD_PATH = path.resolve(process.env.UPLOAD_PATH || "./uploads")
 export const FILE_UNSORTED_DIRECTORY_NAME = "unsorted"
@@ -111,7 +110,7 @@ export async function getDirectorySize(directoryPath: string) {
 }
 
 export function isEnoughStorageToUploadFile(tenant: Tenant, fileSize: number) {
-  if (config.selfHosted.isEnabled || tenant.storageLimit < 0) {
+  if (tenant.storageLimit < 0) {
     return true
   }
   return tenant.storageUsed + fileSize <= tenant.storageLimit

@@ -23,7 +23,7 @@ if (typeof setInterval !== "undefined") {
 export async function GET(request: NextRequest) {
   const session = await getSession()
   if (!session || !session.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 })
   }
 
   try {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     let date = new Date(dateParam)
 
     if (isNaN(date.getTime())) {
-      return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
+      return NextResponse.json({ error: "That date doesn't look right. Use the format YYYY-MM-DD." }, { status: 400 })
     }
 
     // hack to get yesterday's rate if it's today
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: `Failed to fetch currency data: ${response.status}` },
+        { error: "Exchange rates are unavailable right now. Please try again later." },
         { status: response.status }
       )
     }
@@ -75,20 +75,20 @@ export async function GET(request: NextRequest) {
     const match = html.match(scriptTagRegex)
 
     if (!match || !match[1]) {
-      return NextResponse.json({ error: "Could not find currency data in the page" }, { status: 500 })
+      return NextResponse.json({ error: "Exchange rates are unavailable right now. Please try again later." }, { status: 500 })
     }
 
     const jsonData = JSON.parse(match[1])
     const historicRates = jsonData.props.pageProps.historicRates as HistoricRate[]
 
     if (!historicRates || historicRates.length === 0) {
-      return NextResponse.json({ error: "No currency rates found for the specified date" }, { status: 404 })
+      return NextResponse.json({ error: "We don't have an exchange rate for that date yet." }, { status: 404 })
     }
 
     const rate = historicRates.find((rate) => rate.currency === toCurrency)
 
     if (!rate) {
-      return NextResponse.json({ error: `Currency rate not found for ${toCurrency}` }, { status: 404 })
+      return NextResponse.json({ error: `We don't have an exchange rate for ${toCurrency} on that date.` }, { status: 404 })
     }
 
     // Store in cache

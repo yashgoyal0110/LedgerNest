@@ -40,7 +40,7 @@ export function AddServerDialog({ isPending }: AddServerDialogProps) {
       toast.success("Email server added successfully")
       handleClose()
     } else {
-      toast.error(result.error || "Failed to add email server")
+      toast.error(result.error || "We couldn't add that mailbox. Please try again.")
     }
   }
 

@@ -6,6 +6,7 @@ import { buildLLMPrompt } from "@/ai/prompt"
 import { fieldsToJsonSchema } from "@/ai/schema"
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
+import { describeFormError, friendly, MESSAGES } from "@/lib/errors"
 import { getCurrentUser, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/auth"
 import { aiQuotaExhaustedMessage } from "@/lib/tenant"
 import {
@@ -40,7 +41,7 @@ export async function analyzeFileAction(
   const user = await getCurrentUser()
 
   if (!file || file.tenantId !== user.tenantId) {
-    return { success: false, error: "File not found or does not belong to this workspace" }
+    return { success: false, error: "We couldn't find that document in this workspace." }
   }
 
   if (isAiBalanceExhausted(user)) {
@@ -62,7 +63,7 @@ export async function analyzeFileAction(
     attachments = await loadAttachmentsForAI(user.tenant, file)
   } catch (error) {
     console.error("Failed to retrieve files:", error)
-    return { success: false, error: "Failed to retrieve files: " + error }
+    return { success: false, error: friendly("Loading attachments for analysis failed", error, MESSAGES.fileMissing) }
   }
 
   const prompt = buildLLMPrompt(
@@ -101,7 +102,7 @@ export async function saveFileAsTransactionAction(
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedForm.success) {
-      return { success: false, error: validatedForm.error.message }
+      return { success: false, error: describeFormError(validatedForm.error) }
     }
 
     // Get the file record
@@ -156,7 +157,7 @@ export async function saveFileAsTransactionAction(
     return { success: true, data: transaction }
   } catch (error) {
     console.error("Failed to save transaction:", error)
-    return { success: false, error: `Failed to save transaction: ${error}` }
+    return { success: false, error: friendly("Saving transaction failed", error, MESSAGES.save) }
   }
 }
 
@@ -171,7 +172,7 @@ export async function deleteUnsortedFileAction(
     return { success: true }
   } catch (error) {
     console.error("Failed to delete file:", error)
-    return { success: false, error: "Failed to delete file" }
+    return { success: false, error: "We couldn't delete that file. Please try again." }
   }
 }
 
@@ -185,13 +186,13 @@ export async function splitFileIntoItemsAction(
     const items = JSON.parse(formData.get("items") as string) as TransactionData[]
 
     if (!fileId || !items || items.length === 0) {
-      return { success: false, error: "File ID and items are required" }
+      return { success: false, error: "Select at least one item before splitting this document." }
     }
 
     // Get the original file
     const originalFile = await getFileById(fileId, user)
     if (!originalFile) {
-      return { success: false, error: "Original file not found" }
+      return { success: false, error: MESSAGES.fileMissing }
     }
 
     // Get the original file's content
@@ -246,6 +247,6 @@ export async function splitFileIntoItemsAction(
     return { success: true }
   } catch (error) {
     console.error("Failed to split file into items:", error)
-    return { success: false, error: `Failed to split file into items: ${error}` }
+    return { success: false, error: friendly("Splitting document failed", error, "We couldn't split this document. Please try again.") }
   }
 }

@@ -45,7 +45,7 @@ export async function addEmailServerAction(
     return { success: true }
   } catch (error) {
     console.error("Error adding email server:", error)
-    return { success: false, error: "Failed to add email server" }
+    return { success: false, error: "We couldn't add that mailbox. Check the details and try again." }
   }
 }
 
@@ -83,7 +83,7 @@ export async function updateEmailServerAction(
     return { success: true }
   } catch (error) {
     console.error("Error updating email server:", error)
-    return { success: false, error: "Failed to update email server" }
+    return { success: false, error: "We couldn't update that mailbox. Please try again." }
   }
 }
 
@@ -109,7 +109,7 @@ export async function deleteEmailServerAction(serverId: string): Promise<{ succe
     return { success: true }
   } catch (error) {
     console.error("Error deleting email server:", error)
-    return { success: false, error: "Failed to delete email server" }
+    return { success: false, error: "We couldn't remove that mailbox. Please try again." }
   }
 }
 
@@ -119,7 +119,7 @@ export async function testEmailConnectionAction(serverId: string): Promise<{ suc
     const appData = (await getAppData(user, "email")) as EmailAppData | null
     if (!appData) return { success: false, error: "No email servers found" }
     const server = appData.servers.find((s) => s.id === serverId)
-    if (!server) return { success: false, error: "Server not found" }
+    if (!server) return { success: false, error: "We couldn't find that mailbox. It may have been removed." }
 
     let status: EmailServer["status"] = "connected"
     let errorMessage: string | undefined
@@ -161,6 +161,6 @@ export async function syncEmailNowAction(serverId: string): Promise<{ success: b
     return { success: true }
   } catch (error) {
     console.error("Error syncing emails:", error)
-    return { success: false, error: "Failed to sync emails" }
+    return { success: false, error: "We couldn't check that mailbox just now. Please try again." }
   }
 }

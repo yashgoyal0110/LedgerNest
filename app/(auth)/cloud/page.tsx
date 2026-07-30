@@ -5,13 +5,8 @@ import config from "@/lib/config"
 import { PLANS } from "@/lib/stripe"
 import { Mail } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 
 export default async function ChoosePlanPage() {
-  if (config.selfHosted.isEnabled) {
-    redirect(config.selfHosted.redirectUrl)
-  }
-
   return (
     <div className="container mx-auto px-4 py-8">
       <Card className="w-full max-w-4xl mx-auto p-8 flex flex-col items-center justify-center gap-8">
@@ -22,7 +17,7 @@ export default async function ChoosePlanPage() {
         <CardContent className="p-0 w-full">
           {config.auth.disableSignup ? (
             <div className="text-center text-md text-muted-foreground">
-              Creating new account is disabled for now. Please use the self-hosted version.
+              New workspaces are not open for signup right now. Get in touch and we will set one up for you.
             </div>
           ) : (
             <div className="space-y-8">
