@@ -2,7 +2,7 @@
 
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
-import { getDirectorySize, getTenantUploadsDirectory, isEnoughStorageToUploadFile } from "@/lib/files"
+import { isEnoughStorageToUploadFile } from "@/lib/files"
 import { ingestUnsortedFile } from "@/lib/uploads"
 import { recalculateTenantStorage } from "@/models/tenants"
 import { revalidatePath } from "next/cache"

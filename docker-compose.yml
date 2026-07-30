@@ -10,14 +10,19 @@ services:
       - "127.0.0.1:3003:7331"
     environment:
       - NODE_ENV=production
-      - SELF_HOSTED_MODE=true
+      - SELF_HOSTED_MODE=${SELF_HOSTED_MODE:-false}
       - UPLOAD_PATH=/app/data/uploads
       - BASE_URL=${APP_URL:-https://ledgernest.8.229.88.229.sslip.io}
       - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GOOGLE_MODEL_NAME=${GOOGLE_MODEL_NAME:-gemini-2.5-flash}
-      - DEMO_MODE=${DEMO_MODE:-false}
+      - DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-LedgerNest <onboarding@resend.dev>}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - DEMO_MODE=${DEMO_MODE:-true}
       - DEMO_EMAIL=${DEMO_EMAIL:-demo@ledgernest.app}
       - DEMO_PASSWORD=${DEMO_PASSWORD:-}
       - CRON_SECRET=${CRON_SECRET:-}
@@ -44,7 +49,7 @@ services:
     image: ledgernest:local
     environment:
       - NODE_ENV=production
-      - SELF_HOSTED_MODE=true
+      - SELF_HOSTED_MODE=${SELF_HOSTED_MODE:-false}
       - UPLOAD_PATH=/app/data/uploads
       - BASE_URL=${APP_URL:-https://ledgernest.8.229.88.229.sslip.io}
       - DATABASE_URL=postgresql://ledgernest:${POSTGRES_PASSWORD:-ledgernest}@postgres:5432/ledgernest

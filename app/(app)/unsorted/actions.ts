@@ -9,7 +9,6 @@ import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/auth"
 import { aiQuotaExhaustedMessage } from "@/lib/tenant"
 import {
-  getDirectorySize,
   getTransactionFileUploadPath,
   getTenantUploadsDirectory,
   safePathJoin,

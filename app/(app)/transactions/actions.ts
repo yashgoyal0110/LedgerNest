@@ -4,7 +4,6 @@ import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import {
-  getDirectorySize,
   getTransactionFileUploadPath,
   getTenantUploadsDirectory,
   isEnoughStorageToUploadFile,
