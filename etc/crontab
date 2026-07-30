@@ -3,5 +3,9 @@
 # Email sync heartbeat — every 5 min; runEmailSync honors each mailbox's UI sync frequency.
 */5 * * * * set -a; . /etc/cron.env; cd /app && npm run email:sync >> /var/log/cron.log 2>&1
 
+# Refill hourly AI credits for demo workspaces. The app also refills lazily on
+# page load, so this only matters for long-idle deployments.
+0 * * * * set -a; . /etc/cron.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" "$BASE_URL/api/cron/refill-ai-credits" >> /var/log/cron.log 2>&1
+
 # Rotate log when it grows past 10 MB.
 0 0 * * * find /var/log -name "cron.log*" -size +10M -delete

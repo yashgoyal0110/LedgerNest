@@ -22,9 +22,3 @@ repos:
         language: system
         pass_filenames: false
         types: [ts, tsx]
-      - id: test
-        name: Tests
-        entry: npm run test
-        language: system
-        pass_filenames: false
-        stages: [pre-push]

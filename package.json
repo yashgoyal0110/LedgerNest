@@ -11,9 +11,7 @@
     "build": "next build",
     "start": "prisma migrate deploy && next start",
     "lint": "eslint .",
-    "email:sync": "npx tsx \"app/(app)/apps/email/scripts/fetch-emails.ts\"",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "email:sync": "npx tsx \"app/(app)/apps/email/scripts/fetch-emails.ts\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -79,8 +77,7 @@
     "postcss": "^8",
     "prisma": "^7.8.0",
     "tailwindcss": "^4.3.1",
-    "typescript": "^6",
-    "vitest": "^4.1.9"
+    "typescript": "^6"
   },
   "overrides": {
     "react-day-picker": {

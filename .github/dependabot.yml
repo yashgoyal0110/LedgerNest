@@ -58,10 +58,6 @@ updates:
       dnd-kit:
         patterns:
           - "@dnd-kit/*"
-      testing:
-        patterns:
-          - vitest
-          - "@vitest/*"
       linting:
         patterns:
           - eslint*
